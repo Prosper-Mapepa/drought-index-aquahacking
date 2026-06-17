@@ -56,6 +56,46 @@ Open [http://localhost:3000](http://localhost:3000).
 - Leaflet + react-leaflet + esri-leaflet
 - Tailwind CSS
 
+## Deploy to Netlify
+
+This app uses Next.js API routes (`/api/*`), so it needs Netlify’s Next.js runtime — not a static export.
+
+### Option A — Git (recommended)
+
+1. Push the repo to GitHub, GitLab, or Bitbucket.
+2. In [Netlify](https://app.netlify.com), click **Add new site → Import an existing project**.
+3. Connect the repo. Netlify reads `netlify.toml` automatically:
+   - **Build command:** `npm run build`
+   - **Plugin:** `@netlify/plugin-nextjs` (handles routing and serverless API routes)
+4. Deploy. Your site will be live at `https://<name>.netlify.app`.
+
+Optional environment variable in Netlify → **Site configuration → Environment variables**:
+
+| Variable | Value |
+|----------|--------|
+| `NEXT_PUBLIC_BASE_URL` | `https://your-site.netlify.app` (for API docs examples) |
+
+Netlify also sets `URL` automatically at build time if you skip this.
+
+### Option B — Netlify CLI
+
+```bash
+npm install -g netlify-cli
+npm install
+npm run build
+netlify login
+netlify init        # link or create a site
+netlify deploy --prod
+```
+
+### Local Netlify build test
+
+```bash
+npm install
+npm run build
+npx netlify dev     # simulates Netlify locally (API routes + redirects)
+```
+
 ## License
 
 Platform code: MIT. Data layers retain their original licenses (CC-BY 4.0 for Québec open data).

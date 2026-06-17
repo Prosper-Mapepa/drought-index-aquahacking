@@ -5,7 +5,10 @@ export const metadata = {
 };
 
 export default function DocsPage() {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_URL ??
+    process.env.URL ??
+    "http://localhost:3000";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
