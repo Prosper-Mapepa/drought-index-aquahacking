@@ -25,15 +25,15 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
       <Header showSearch />
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden relative min-w-0">
         <Sidebar />
-          <main className="flex-1 relative">
-            <DroughtMap />
-            <ScenarioBadge />
-            <DroughtLegend />
-            <ScenarioBar />
-            <RiskPanel />
-          </main>
+        <main className="flex-1 relative min-w-0 w-full">
+          <DroughtMap />
+          <ScenarioBadge />
+          <DroughtLegend />
+          <ScenarioBar />
+          <RiskPanel />
+        </main>
       </div>
       <Footer />
       <DisclaimerModal />

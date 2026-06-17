@@ -20,7 +20,7 @@ export function DroughtLegend() {
     ];
 
     return (
-      <div className="absolute bottom-10 right-3 z-[1000] bg-white/95 backdrop-blur rounded-lg shadow-lg p-3 text-xs max-w-[220px]">
+      <div className="absolute bottom-24 sm:bottom-10 right-2 sm:right-3 z-[1000] bg-white/95 backdrop-blur rounded-lg shadow-lg p-2 sm:p-3 text-[10px] sm:text-xs max-w-[min(220px,calc(100vw-5rem))]">
         <h3 className="font-semibold text-slate-800 mb-1">
           {t(locale, "compositeLegend")}
         </h3>
@@ -59,7 +59,7 @@ export function DroughtLegend() {
   ];
 
   return (
-    <div className="absolute bottom-10 right-3 z-[1000] bg-white/95 backdrop-blur rounded-lg shadow-lg p-3 text-xs max-w-[220px]">
+    <div className="absolute bottom-24 sm:bottom-10 right-2 sm:right-3 z-[1000] bg-white/95 backdrop-blur rounded-lg shadow-lg p-2 sm:p-3 text-[10px] sm:text-xs max-w-[min(220px,calc(100vw-5rem))]">
       <h3 className="font-semibold text-slate-800 mb-2">
         {t(locale, "droughtLegend")}
       </h3>

@@ -11,17 +11,17 @@ export function ScenarioBar() {
 
   return (
     <div
-      className={`absolute left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center gap-2 pointer-events-none transition-all ${
-        investmentRisk ? "bottom-36" : "bottom-10"
+      className={`absolute left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center gap-2 pointer-events-none transition-all px-2 w-full max-w-[100vw] ${
+        investmentRisk ? "bottom-36 sm:bottom-36" : "bottom-20 sm:bottom-10"
       }`}
     >
-      <div className="flex items-center gap-1 bg-sidebar/95 backdrop-blur rounded-lg shadow-lg p-1 pointer-events-auto border border-sidebar-border">
+      <div className="flex items-center gap-1 bg-sidebar/95 backdrop-blur rounded-lg shadow-lg p-1 pointer-events-auto border border-sidebar-border max-w-full overflow-x-auto">
         {CLIMATE_SCENARIOS.map((s) => (
           <button
             key={s.id}
             onClick={() => setScenario(s.id)}
             title={s.description[locale]}
-            className={`px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-colors whitespace-nowrap ${
+            className={`px-2 sm:px-2.5 py-1.5 text-[10px] sm:text-[11px] font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
               scenario === s.id
                 ? "bg-accent text-white"
                 : "text-white/70 hover:text-white hover:bg-sidebar-hover"

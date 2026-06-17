@@ -212,92 +212,127 @@ function SavedAreasPanel() {
   );
 }
 
-export function Sidebar() {
-  const { locale, wellCount, region } = useApp();
-  const [collapsed, setCollapsed] = useState(false);
-
-  if (collapsed) {
-    return (
-      <button
-        onClick={() => setCollapsed(false)}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-40 bg-sidebar text-white p-2 
-                   rounded-r-lg border border-l-0 border-sidebar-border hover:bg-sidebar-hover"
-        title={t(locale, "layers")}
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
-    );
-  }
+function SidebarExpandTab() {
+  const { locale, setSidebarOpen } = useApp();
 
   return (
-    <aside
-      className="bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 z-40 relative"
-      style={{ width: "var(--sidebar-width)" }}
+    <button
+      type="button"
+      onClick={() => setSidebarOpen(true)}
+      className="fixed left-0 z-[1100] flex items-center gap-2 bg-sidebar text-white 
+                 py-2.5 pl-2 pr-3 rounded-r-lg border border-l-0 border-sidebar-border 
+                 shadow-lg hover:bg-sidebar-hover transition-colors pointer-events-auto"
+      style={{
+        top: "calc(var(--header-height) + (100dvh - var(--header-height) - var(--footer-height)) / 2)",
+        transform: "translateY(-50%)",
+      }}
+      aria-label={t(locale, "openLayers")}
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
-        <h2 className="text-sm font-semibold text-white">{t(locale, "layers")}</h2>
+      <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      </svg>
+      <span className="text-xs font-semibold pr-1">{t(locale, "openLayers")}</span>
+    </button>
+  );
+}
+
+export function Sidebar() {
+  const { locale, wellCount, region, sidebarOpen, setSidebarOpen } = useApp();
+
+  return (
+    <>
+      {!sidebarOpen && <SidebarExpandTab />}
+
+      {sidebarOpen && (
         <button
-          onClick={() => setCollapsed(true)}
-          className="text-white/50 hover:text-white transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-      </div>
+          type="button"
+          className="fixed inset-0 z-[1050] bg-black/40 md:hidden"
+          style={{
+            top: "var(--header-height)",
+            bottom: "var(--footer-height)",
+          }}
+          onClick={() => setSidebarOpen(false)}
+          aria-label={t(locale, "close")}
+        />
+      )}
 
-      <RegionSelector />
+      <aside
+        className={`fixed z-[1060] flex flex-col bg-sidebar border-r border-sidebar-border
+          w-[min(300px,88vw)] md:w-[var(--sidebar-width)]
+          transition-transform duration-200 ease-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"}
+        `}
+        style={{
+          top: "var(--header-height)",
+          bottom: "var(--footer-height)",
+          left: 0,
+        }}
+        aria-hidden={!sidebarOpen}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border shrink-0">
+          <h2 className="text-sm font-semibold text-white">{t(locale, "layers")}</h2>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="text-white/50 hover:text-white transition-colors p-1"
+            aria-label={t(locale, "close")}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        </div>
 
-      <div className="flex-1 overflow-y-auto sidebar-scroll">
-        <LayerGroup title={t(locale, "droughtIndices")}>
-          <LayerToggle id="spi" label={t(locale, "spi")} showOpacity />
-          <LayerToggle id="spei" label={t(locale, "spei")} showOpacity />
-          {region === "great-lakes" && (
-            <LayerToggle id="us-spi" label={t(locale, "usSpi")} showOpacity />
-          )}
-        </LayerGroup>
+        <RegionSelector />
 
-        {region === "quebec" && (
-          <LayerGroup title={t(locale, "groundwater")}>
-            <LayerToggle id="sih-wells" label={t(locale, "sihWells")} />
+        <div className="flex-1 overflow-y-auto sidebar-scroll min-h-0">
+          <LayerGroup title={t(locale, "droughtIndices")}>
+            <LayerToggle id="spi" label={t(locale, "spi")} showOpacity />
+            <LayerToggle id="spei" label={t(locale, "spei")} showOpacity />
+            {region === "great-lakes" && (
+              <LayerToggle id="us-spi" label={t(locale, "usSpi")} showOpacity />
+            )}
           </LayerGroup>
-        )}
 
-        <LayerGroup title={t(locale, "surfaceWater")}>
           {region === "quebec" && (
-            <LayerToggle id="watersheds" label={t(locale, "watersheds")} showOpacity />
+            <LayerGroup title={t(locale, "groundwater")}>
+              <LayerToggle id="sih-wells" label={t(locale, "sihWells")} />
+            </LayerGroup>
           )}
-          <LayerToggle id="great-lakes-basin" label={t(locale, "greatLakesBasin")} showOpacity />
-        </LayerGroup>
 
-        <LayerGroup title={t(locale, "terrain")}>
-          <LayerToggle id="satellite" label={t(locale, "satellite")} />
-          <LayerToggle id="terrain" label={t(locale, "terrainBase")} />
-        </LayerGroup>
+          <LayerGroup title={t(locale, "surfaceWater")}>
+            {region === "quebec" && (
+              <LayerToggle id="watersheds" label={t(locale, "watersheds")} showOpacity />
+            )}
+            <LayerToggle id="great-lakes-basin" label={t(locale, "greatLakesBasin")} showOpacity />
+          </LayerGroup>
 
-        <LayerGroup title={t(locale, "indexWeights")} defaultOpen={false}>
-          <IndexWeightsPanel />
-        </LayerGroup>
+          <LayerGroup title={t(locale, "terrain")}>
+            <LayerToggle id="satellite" label={t(locale, "satellite")} />
+            <LayerToggle id="terrain" label={t(locale, "terrainBase")} />
+          </LayerGroup>
 
-        <LayerGroup title={t(locale, "savedAreas")} defaultOpen={false}>
-          <SavedAreasPanel />
-        </LayerGroup>
-      </div>
+          <LayerGroup title={t(locale, "indexWeights")} defaultOpen={false}>
+            <IndexWeightsPanel />
+          </LayerGroup>
 
-      <div className="px-4 py-3 border-t border-sidebar-border text-xs text-white/50 space-y-1">
-        {region === "quebec" && wellCount > 0 ? (
-          <span>
-            {wellCount.toLocaleString()} {t(locale, "wellsLoaded")}
-          </span>
-        ) : region === "quebec" ? (
-          <span>{t(locale, "zoomToSeeWells")}</span>
-        ) : (
-          <span>{t(locale, "greatLakesHint")}</span>
-        )}
-        <p className="text-white/40 leading-relaxed">{t(locale, "clickWatershed")}</p>
-      </div>
-    </aside>
+          <LayerGroup title={t(locale, "savedAreas")} defaultOpen={false}>
+            <SavedAreasPanel />
+          </LayerGroup>
+        </div>
+
+        <div className="px-4 py-3 border-t border-sidebar-border text-xs text-white/50 space-y-1 shrink-0">
+          {region === "quebec" && wellCount > 0 ? (
+            <span>
+              {wellCount.toLocaleString()} {t(locale, "wellsLoaded")}
+            </span>
+          ) : region === "quebec" ? (
+            <span>{t(locale, "zoomToSeeWells")}</span>
+          ) : (
+            <span>{t(locale, "greatLakesHint")}</span>
+          )}
+          <p className="text-white/40 leading-relaxed">{t(locale, "clickWatershed")}</p>
+        </div>
+      </aside>
+    </>
   );
 }

@@ -740,17 +740,17 @@ function ExportControls() {
 
   return (
     <MapPortal>
-      <div className="absolute bottom-14 left-14 z-[1000] flex gap-1.5 pointer-events-auto">
+      <div className="absolute bottom-24 sm:bottom-14 left-2 sm:left-14 z-[1000] flex flex-col sm:flex-row gap-1 sm:gap-1.5 pointer-events-auto">
       <button
         onClick={() => handleExport("csv")}
-        className="px-2.5 py-1.5 bg-white/95 backdrop-blur rounded-md shadow-md text-[11px] 
+        className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white/95 backdrop-blur rounded-md shadow-md text-[10px] sm:text-[11px] 
                    text-slate-600 hover:bg-white whitespace-nowrap font-medium"
       >
         {t(locale, "exportCsv")}
       </button>
       <button
         onClick={() => handleExport("geojson")}
-        className="px-2.5 py-1.5 bg-white/95 backdrop-blur rounded-md shadow-md text-[11px] 
+        className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white/95 backdrop-blur rounded-md shadow-md text-[10px] sm:text-[11px] 
                    text-slate-600 hover:bg-white whitespace-nowrap font-medium"
       >
         {t(locale, "exportGeoJson")}

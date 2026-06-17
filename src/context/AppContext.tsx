@@ -34,6 +34,7 @@ interface AppContextValue {
   toggleLayer: (id: LayerId) => void;
   setLayerOpacity: (id: LayerId, opacity: number) => void;
   disclaimerAccepted: boolean;
+  teamNoteReady: boolean;
   acceptDisclaimer: () => void;
   coordinates: [number, number] | null;
   setCoordinates: (coords: [number, number] | null) => void;
@@ -72,6 +73,8 @@ interface AppContextValue {
   mapView: FlyToTarget | null;
   setMapView: (view: FlyToTarget | null) => void;
   applyRegionDefaults: (region: MapRegion) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 }
 
 const defaultLayers: LayerState[] = [
@@ -91,6 +94,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("fr");
   const [layers, setLayers] = useState<LayerState[]>(defaultLayers);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  const [teamNoteReady, setTeamNoteReady] = useState(false);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [wellCount, setWellCount] = useState(0);
   const [legendMode, setLegendMode] = useState<LegendMode>("spi");
@@ -106,7 +110,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [savedAreas, setSavedAreas] = useState<SavedArea[]>([]);
   const [flyToTarget, setFlyToTarget] = useState<FlyToTarget | null>(null);
   const [mapTransitioning, setMapTransitioning] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mapView, setMapViewState] = useState<FlyToTarget | null>(null);
+
+  useEffect(() => {
+    localStorage.removeItem("drought-team-note-seen");
+    localStorage.removeItem("drought-disclaimer-accepted");
+    if (sessionStorage.getItem("drought-team-note-seen") === "true") {
+      setDisclaimerAccepted(true);
+    }
+    setTeamNoteReady(true);
+
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      setSidebarOpen(false);
+    }
+
+    const savedLocale = localStorage.getItem("drought-locale") as Locale | null;
+    if (savedLocale === "en" || savedLocale === "fr") setLocaleState(savedLocale);
+    const savedRegion = localStorage.getItem("drought-region") as MapRegion | null;
+    if (savedRegion === "quebec" || savedRegion === "great-lakes") setRegionState(savedRegion);
+    const savedWeights = localStorage.getItem("drought-index-weights");
+    if (savedWeights) {
+      try {
+        setIndexWeightsState(normalizeWeights(JSON.parse(savedWeights)));
+      } catch {
+        /* ignore */
+      }
+    }
+    setSavedAreas(loadSavedAreas());
+  }, []);
 
   const setMapView = useCallback((view: FlyToTarget | null) => {
     setMapViewState((prev) => {
@@ -121,24 +153,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return view;
     });
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("drought-disclaimer-accepted");
-    if (saved === "true") setDisclaimerAccepted(true);
-    const savedLocale = localStorage.getItem("drought-locale") as Locale | null;
-    if (savedLocale === "en" || savedLocale === "fr") setLocaleState(savedLocale);
-    const savedRegion = localStorage.getItem("drought-region") as MapRegion | null;
-    if (savedRegion === "quebec" || savedRegion === "great-lakes") setRegionState(savedRegion);
-    const savedWeights = localStorage.getItem("drought-index-weights");
-    if (savedWeights) {
-      try {
-        setIndexWeightsState(normalizeWeights(JSON.parse(savedWeights)));
-      } catch {
-        /* ignore */
-      }
-    }
-    setSavedAreas(loadSavedAreas());
   }, []);
 
   const setLocale = useCallback((l: Locale) => {
@@ -167,7 +181,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const acceptDisclaimer = useCallback(() => {
     setDisclaimerAccepted(true);
-    localStorage.setItem("drought-disclaimer-accepted", "true");
+    sessionStorage.setItem("drought-team-note-seen", "true");
   }, []);
 
   const saveCurrentArea = useCallback(
@@ -256,6 +270,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toggleLayer,
       setLayerOpacity,
       disclaimerAccepted,
+      teamNoteReady,
       acceptDisclaimer,
       coordinates,
       setCoordinates,
@@ -294,6 +309,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       mapView,
       setMapView,
       applyRegionDefaults,
+      sidebarOpen,
+      setSidebarOpen,
     }),
     [
       locale,
@@ -302,6 +319,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toggleLayer,
       setLayerOpacity,
       disclaimerAccepted,
+      teamNoteReady,
       acceptDisclaimer,
       coordinates,
       wellCount,
@@ -329,6 +347,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       mapView,
       setMapView,
       applyRegionDefaults,
+      sidebarOpen,
     ]
   );
 

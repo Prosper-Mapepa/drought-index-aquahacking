@@ -34,10 +34,13 @@ const messages = {
     company: "Drilling Company",
     method: "Drilling Method",
     noData: "No data",
-    disclaimerTitle: "Data Disclaimer",
+    disclaimerTitle: "Note to the team",
     disclaimerText:
-      "SIH data is incomplete and intended for informational use only. It does not constitute an exhaustive inventory of all wells in Québec. Field verification is required for regulatory applications.",
-    acceptDisclaimer: "I understand",
+      "Welcome to the Great Lakes Drought Index — our internal preview of drought and water-stress mapping for Québec and the Great Lakes region. Use the layer panel to explore SPI/SPEI overlays, SIH wells, watershed investment risk, and climate scenarios. This is a working prototype: share feedback with the team and treat outputs as exploratory until we finalize the methodology.",
+    disclaimerSignOff:
+      "Thank you — looking forward to our meeting tonight.\n\n— Prosper",
+    acceptDisclaimer: "Got it",
+    openLayers: "Layers",
     exportData: "Export Visible Wells",
     exportCsv: "Export CSV",
     exportGeoJson: "Export GeoJSON",
@@ -172,10 +175,13 @@ const messages = {
     company: "Entreprise de forage",
     method: "Méthode de forage",
     noData: "Aucune donnée",
-    disclaimerTitle: "Avertissement sur les données",
+    disclaimerTitle: "Note à l'équipe",
     disclaimerText:
-      "Les données du SIH sont incomplètes et destinées à un usage informatif seulement. Elles ne constituent pas un inventaire exhaustif de tous les puits au Québec. Une vérification sur le terrain est requise pour toute application réglementaire.",
-    acceptDisclaimer: "Je comprends",
+      "Bienvenue sur l'Indice de sécheresse des Grands Lacs — notre aperçu interne de la cartographie de la sécheresse et du stress hydrique pour le Québec et la région des Grands Lacs. Utilisez le panneau des couches pour explorer les superpositions SPI/SPEI, les puits SIH, le risque d'investissement par bassin versant et les scénarios climatiques. Il s'agit d'un prototype en cours : partagez vos commentaires avec l'équipe et considérez les résultats comme exploratoires jusqu'à la finalisation de la méthodologie.",
+    disclaimerSignOff:
+      "Merci — au plaisir de notre rencontre ce soir.\n\n— Prosper",
+    acceptDisclaimer: "Compris",
+    openLayers: "Couches",
     exportData: "Exporter les puits visibles",
     exportCsv: "Exporter CSV",
     exportGeoJson: "Exporter GeoJSON",
