@@ -22,6 +22,7 @@ export function RiskPanel() {
     selectedWatershed,
     riskLocation,
     compareMode,
+    sidebarOpen,
     setInvestmentRisk,
     setSelectedWatershed,
     setCompareRisk,
@@ -46,8 +47,12 @@ export function RiskPanel() {
   }
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-[1001] animate-fade-in pointer-events-none">
-      <div className="mx-4 mb-2 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden pointer-events-auto">
+    <div
+      className={`absolute bottom-0 right-0 z-[1001] animate-fade-in pointer-events-none transition-[left] duration-200 ${
+        sidebarOpen ? "left-0 md:left-[var(--sidebar-width)]" : "left-0"
+      }`}
+    >
+      <div className="mx-2 sm:mx-4 mb-2 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden pointer-events-auto max-h-[40dvh] overflow-y-auto">
         <div className="flex items-start justify-between px-4 py-3 border-b border-slate-100">
           <div>
             <h3 className="text-sm font-semibold text-slate-900">

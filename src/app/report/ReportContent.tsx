@@ -61,7 +61,7 @@ export default function ReportContent() {
     <div className="min-h-screen bg-white">
       <Header />
 
-      <main className="max-w-3xl mx-auto px-8 py-10 print:py-6">
+      <main className="max-w-3xl mx-auto px-8 py-10 pb-16 print:py-6">
         <div className="flex items-center justify-between mb-8 print:mb-4">
           <Link href="/" className="text-sm text-accent hover:underline print:hidden">
             ← {t(locale, "backToMap")}

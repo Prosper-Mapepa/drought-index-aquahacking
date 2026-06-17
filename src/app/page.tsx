@@ -23,7 +23,7 @@ const DroughtMap = dynamic(
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden">
+    <div className="flex flex-col h-[100dvh] w-screen overflow-hidden">
       <Header showSearch />
       <div className="flex flex-1 overflow-hidden relative min-w-0">
         <Sidebar />

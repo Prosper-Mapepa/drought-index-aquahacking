@@ -24,7 +24,7 @@ export default function DocsPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-10 space-y-10">
+      <main className="max-w-3xl mx-auto px-6 py-10 pb-16 space-y-10">
         <section>
           <h2 className="text-xl font-semibold mb-3">Overview</h2>
           <p className="text-slate-600 leading-relaxed">

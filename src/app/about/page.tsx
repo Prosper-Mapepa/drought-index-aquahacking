@@ -54,8 +54,8 @@ export default function AboutPage() {
     <div className="flex flex-col min-h-screen bg-slate-50">
       <Header />
 
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-6 py-10">
+      <main className="flex-1">
+        <div className="max-w-3xl mx-auto px-6 py-10 pb-16">
           <Link
             href="/"
             className="inline-flex items-center gap-1 text-sm text-accent hover:text-accent-hover mb-6"
