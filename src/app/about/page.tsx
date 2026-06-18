@@ -176,6 +176,10 @@ export default function AboutPage() {
               </ol>
             </Section>
           </div>
+
+          <p className="mt-12 pt-6 border-t border-slate-200 text-xs text-slate-400">
+            © {new Date().getFullYear()} {t(locale, "copyrightName")} · {t(locale, "platformName")}
+          </p>
         </div>
       </main>
     </div>

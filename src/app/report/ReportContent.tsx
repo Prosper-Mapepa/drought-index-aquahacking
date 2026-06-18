@@ -8,6 +8,7 @@ import { t } from "@/lib/i18n";
 import { riskTierColor } from "@/lib/drought-index";
 import type { InvestmentRiskReport } from "@/lib/investment-risk";
 import type { ClimateScenarioId } from "@/lib/scenarios";
+import { appendCustomScenarioParams } from "@/lib/scenarios";
 import { Header } from "@/components/layout/Header";
 
 export default function ReportContent() {
@@ -36,6 +37,14 @@ export default function ReportContent() {
         locale,
         scenario,
       });
+      if (scenario === "custom") {
+        appendCustomScenarioParams(params, scenario, {
+          timescale: Number(searchParams.get("timescale") ?? 3) as 1 | 3 | 12,
+          rcp: (searchParams.get("rcp") ?? "4.5") as "2.6" | "4.5" | "8.5",
+          percentile: Number(searchParams.get("percentile") ?? 50) as 25 | 50 | 75,
+          year: Number(searchParams.get("year") ?? 2050) as 2030 | 2050 | 2080 | 2100,
+        });
+      }
 
       const res = await fetch(`/api/risk?${params}`);
       if (res.ok) setReport(await res.json());
@@ -55,7 +64,7 @@ export default function ReportContent() {
     }
 
     load();
-  }, [lat, lng, locale, scenario]);
+  }, [lat, lng, locale, scenario, searchParams]);
 
   return (
     <div className="min-h-screen bg-white">

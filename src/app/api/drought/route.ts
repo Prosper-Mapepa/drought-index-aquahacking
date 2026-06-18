@@ -3,7 +3,10 @@ import { buildDroughtScore, computeGroundwaterStress, computeYieldStress } from 
 import { fetchClimateIndices } from "@/lib/climate-data";
 import { parseWeightsFromSearchParams } from "@/lib/index-weights";
 import type { ClimateScenarioId } from "@/lib/scenarios";
-import { getScenario } from "@/lib/scenarios";
+import {
+  parseCustomScenarioFromSearchParams,
+  resolveScenario,
+} from "@/lib/scenarios";
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -19,7 +22,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const scenario = getScenario(scenarioId);
+    const customScenario = parseCustomScenarioFromSearchParams(params);
+    const scenario = resolveScenario(scenarioId, customScenario);
     const { spi, spei } = await fetchClimateIndices(
       lat,
       lng,

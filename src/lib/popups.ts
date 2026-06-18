@@ -1,7 +1,8 @@
 import type { DroughtScore } from "./drought-index";
 import { riskTierColor } from "./drought-index";
 import type { InvestmentRiskReport } from "./investment-risk";
-import type { ClimateScenarioId } from "./scenarios";
+import type { ClimateScenarioId, CustomScenarioConfig } from "./scenarios";
+import { appendCustomScenarioParams } from "./scenarios";
 import type { Locale, IndexWeights } from "./types";
 import type { WellProperties, WatershedProperties } from "./types";
 
@@ -178,7 +179,8 @@ export async function fetchDroughtScore(
   yieldLpm?: number,
   locale: Locale = "en",
   scenario: ClimateScenarioId = "current",
-  weights?: IndexWeights
+  weights?: IndexWeights,
+  customScenario?: CustomScenarioConfig | null
 ): Promise<DroughtScore | null> {
   const params = new URLSearchParams({
     lat: String(lat),
@@ -186,6 +188,7 @@ export async function fetchDroughtScore(
     locale,
     scenario,
   });
+  appendCustomScenarioParams(params, scenario, customScenario);
   if (depth != null) params.set("depth", String(depth));
   if (yieldLpm != null) params.set("yield", String(yieldLpm));
   if (weights) {
@@ -210,7 +213,8 @@ export async function fetchInvestmentRisk(
   scenario: ClimateScenarioId,
   locale: Locale,
   watershed?: WatershedProperties,
-  weights?: IndexWeights
+  weights?: IndexWeights,
+  customScenario?: CustomScenarioConfig | null
 ): Promise<InvestmentRiskReport | null> {
   const params = new URLSearchParams({
     lat: String(lat),
@@ -218,6 +222,7 @@ export async function fetchInvestmentRisk(
     locale,
     scenario,
   });
+  appendCustomScenarioParams(params, scenario, customScenario);
   if (watershed) params.set("watershed", JSON.stringify(watershed));
   if (weights) {
     params.set("w_spi", String(weights.spi));

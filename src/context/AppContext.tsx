@@ -21,9 +21,14 @@ import type {
 } from "@/lib/types";
 import type { DroughtScore } from "@/lib/drought-index";
 import type { InvestmentRiskReport } from "@/lib/investment-risk";
-import type { ClimateScenarioId } from "@/lib/scenarios";
+import type { ClimateScenarioId, CustomScenarioConfig } from "@/lib/scenarios";
+import { DEFAULT_CUSTOM_SCENARIO } from "@/lib/scenarios";
 import { DEFAULT_INDEX_WEIGHTS, normalizeWeights, REGION_VIEWS } from "@/lib/index-weights";
 import { loadSavedAreas, addSavedArea, removeSavedArea, createSavedArea } from "@/lib/saved-areas";
+import {
+  loadCustomScenario,
+  persistCustomScenario,
+} from "@/lib/custom-scenario-storage";
 
 export type LegendMode = "spi" | "composite";
 
@@ -48,6 +53,8 @@ interface AppContextValue {
   setSelectedWellScore: (score: DroughtScore | null) => void;
   scenario: ClimateScenarioId;
   setScenario: (scenario: ClimateScenarioId) => void;
+  customScenario: CustomScenarioConfig;
+  setCustomScenario: (config: CustomScenarioConfig) => void;
   selectedWatershed: WatershedProperties | null;
   setSelectedWatershed: (ws: WatershedProperties | null) => void;
   investmentRisk: InvestmentRiskReport | null;
@@ -100,6 +107,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [legendMode, setLegendMode] = useState<LegendMode>("spi");
   const [selectedWellScore, setSelectedWellScore] = useState<DroughtScore | null>(null);
   const [scenario, setScenario] = useState<ClimateScenarioId>("current");
+  const [customScenario, setCustomScenarioState] = useState<CustomScenarioConfig>(
+    DEFAULT_CUSTOM_SCENARIO
+  );
   const [selectedWatershed, setSelectedWatershed] = useState<WatershedProperties | null>(null);
   const [investmentRisk, setInvestmentRisk] = useState<InvestmentRiskReport | null>(null);
   const [compareRisk, setCompareRisk] = useState<InvestmentRiskReport | null>(null);
@@ -138,6 +148,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
     setSavedAreas(loadSavedAreas());
+    setCustomScenarioState(loadCustomScenario());
   }, []);
 
   const setMapView = useCallback((view: FlyToTarget | null) => {
@@ -163,6 +174,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setRegion = useCallback((r: MapRegion) => {
     setRegionState(r);
     localStorage.setItem("drought-region", r);
+  }, []);
+
+  const setCustomScenario = useCallback((config: CustomScenarioConfig) => {
+    setCustomScenarioState(config);
+    persistCustomScenario(config);
   }, []);
 
   const setIndexWeights = useCallback((weights: IndexWeights) => {
@@ -284,6 +300,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSelectedWellScore,
       scenario,
       setScenario,
+      customScenario,
+      setCustomScenario,
       selectedWatershed,
       setSelectedWatershed,
       investmentRisk,
@@ -328,6 +346,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       legendMode,
       selectedWellScore,
       scenario,
+      customScenario,
+      setCustomScenario,
       selectedWatershed,
       investmentRisk,
       compareRisk,

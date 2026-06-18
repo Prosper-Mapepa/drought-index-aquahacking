@@ -39,6 +39,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+**Team presentation guide:** see [docs/TEAM_GUIDE.md](docs/TEAM_GUIDE.md) for a plain-language walkthrough to share with teammates.
+
 ## Data Sources
 
 | Layer | Source |

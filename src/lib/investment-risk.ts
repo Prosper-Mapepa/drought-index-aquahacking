@@ -1,7 +1,7 @@
 import type { DroughtScore, RiskTier } from "./drought-index";
 import { compositeToRiskTier, riskTierLabel } from "./drought-index";
-import type { ClimateScenarioId } from "./scenarios";
-import { getScenario } from "./scenarios";
+import type { ClimateScenarioId, CustomScenarioConfig } from "./scenarios";
+import { resolveScenario, scenarioStressBonus } from "./scenarios";
 import type { Locale, WatershedProperties } from "./types";
 
 export interface InvestmentRiskReport {
@@ -31,33 +31,21 @@ function watershedIssueScore(props?: WatershedProperties): number {
   return Math.min(score, 1);
 }
 
-function scenarioStressBonus(scenarioId: ClimateScenarioId): number {
-  switch (scenarioId) {
-    case "2050-rcp45":
-      return 0.15;
-    case "2050-rcp85":
-      return 0.35;
-    case "2100-rcp85":
-      return 0.55;
-    default:
-      return 0;
-  }
-}
-
 export function buildInvestmentRisk(params: {
   droughtScore: DroughtScore | null;
   watershed?: WatershedProperties;
   scenarioId: ClimateScenarioId;
+  customScenario?: CustomScenarioConfig | null;
   locale: Locale;
 }): InvestmentRiskReport {
-  const { droughtScore, watershed, scenarioId, locale } = params;
-  const scenario = getScenario(scenarioId);
+  const { droughtScore, watershed, scenarioId, customScenario, locale } = params;
+  const scenario = resolveScenario(scenarioId, customScenario);
 
   const droughtFactor = droughtScore?.composite != null
     ? Math.max(0, Math.min(1, (droughtScore.composite + 2) / 4))
     : 0.5;
 
-  const climateFactor = scenarioStressBonus(scenarioId);
+  const climateFactor = scenarioStressBonus(scenario);
   const watershedFactor = watershedIssueScore(watershed);
   const groundwaterFactor = droughtScore?.groundwaterStress ?? 0.5;
 
@@ -73,7 +61,12 @@ export function buildInvestmentRisk(params: {
   const normalizedComposite = overallScore * 2 - 1;
   const riskTier = compositeToRiskTier(normalizedComposite);
 
-  const recommendations = buildRecommendations(riskTier, scenarioId, locale, watershed);
+  const recommendations = buildRecommendations(
+    riskTier,
+    scenario,
+    locale,
+    watershed
+  );
 
   return {
     overallScore,
@@ -95,7 +88,7 @@ export function buildInvestmentRisk(params: {
 
 function buildRecommendations(
   tier: RiskTier,
-  scenarioId: ClimateScenarioId,
+  scenario: ReturnType<typeof resolveScenario>,
   locale: Locale,
   watershed?: WatershedProperties
 ): string[] {
@@ -116,11 +109,11 @@ function buildRecommendations(
     );
   }
 
-  if (scenarioId !== "current") {
+  if (scenario.id !== "current") {
     recs.push(
       isFr
-        ? `Projection ${getScenario(scenarioId).label.fr} : prévoir une augmentation du stress hydrique.`
-        : `${getScenario(scenarioId).label.en} projection: anticipate increased water stress.`
+        ? `Projection ${scenario.label.fr} : prévoir une augmentation du stress hydrique.`
+        : `${scenario.label.en} projection: anticipate increased water stress.`
     );
   }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useApp } from "@/context/AppContext";
 import { t } from "@/lib/i18n";
 import { riskTierColor } from "@/lib/drought-index";
+import { appendCustomScenarioParams } from "@/lib/scenarios";
 
 function RiskScore({ score, label }: { score: number; label: string }) {
   return (
@@ -22,6 +23,7 @@ export function RiskPanel() {
     selectedWatershed,
     riskLocation,
     compareMode,
+    customScenario,
     sidebarOpen,
     setInvestmentRisk,
     setSelectedWatershed,
@@ -45,6 +47,11 @@ export function RiskPanel() {
     reportParams.set("lat", String(riskLocation[0]));
     reportParams.set("lng", String(riskLocation[1]));
   }
+  appendCustomScenarioParams(
+    reportParams,
+    investmentRisk.scenario,
+    customScenario
+  );
 
   return (
     <div

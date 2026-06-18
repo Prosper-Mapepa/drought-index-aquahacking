@@ -27,7 +27,7 @@ import {
   spiValueToColor,
   droughtLabel,
 } from "@/lib/constants";
-import { GEOMET_CLIMATE_WMS, getScenario } from "@/lib/scenarios";
+import { GEOMET_CLIMATE_WMS, resolveScenario } from "@/lib/scenarios";
 import {
   queryAllSihWellsInBbox,
   wellsToCsv,
@@ -115,8 +115,8 @@ function CoordinateTracker() {
 }
 
 function ClimateProjectionLayer() {
-  const { scenario, layers } = useApp();
-  const scenarioDef = getScenario(scenario);
+  const { scenario, customScenario, layers } = useApp();
+  const scenarioDef = resolveScenario(scenario, customScenario);
   const spiVisible = layers.find((l) => l.id === "spi")?.visible ?? false;
 
   if (scenarioDef.useAafcSpi || !scenarioDef.wmsLayer || !spiVisible) return null;
@@ -252,6 +252,7 @@ function WatershedEsriLayer({
   const {
     locale,
     scenario,
+    customScenario,
     compareMode,
     indexWeights,
     setSelectedWatershed,
@@ -261,10 +262,12 @@ function WatershedEsriLayer({
   } = useApp();
   const localeRef = useRef(locale);
   const scenarioRef = useRef(scenario);
+  const customScenarioRef = useRef(customScenario);
   const compareModeRef = useRef(compareMode);
   const indexWeightsRef = useRef(indexWeights);
   localeRef.current = locale;
   scenarioRef.current = scenario;
+  customScenarioRef.current = customScenario;
   compareModeRef.current = compareMode;
   indexWeightsRef.current = indexWeights;
 
@@ -307,12 +310,21 @@ function WatershedEsriLayer({
             const { lat, lng } = e.latlng;
             const loc = localeRef.current;
             const scen = scenarioRef.current;
+            const custom = customScenarioRef.current;
             const weights = indexWeightsRef.current;
             setSelectedWatershed(props);
             setRiskLocation([lat, lng]);
             layer.openPopup(e.latlng);
 
-            const risk = await fetchInvestmentRisk(lat, lng, scen, loc, props, weights);
+            const risk = await fetchInvestmentRisk(
+              lat,
+              lng,
+              scen,
+              loc,
+              props,
+              weights,
+              custom
+            );
             setInvestmentRisk(risk);
             layer.setPopupContent(formatWatershedPopup(props, loc, risk));
 
@@ -479,13 +491,13 @@ function UsSpiLayer({
 }
 
 function EsriLayers() {
-  const { layers, scenario } = useApp();
+  const { layers, scenario, customScenario } = useApp();
   const spiLayer = layers.find((l) => l.id === "spi");
   const speiLayer = layers.find((l) => l.id === "spei");
   const watershedLayer = layers.find((l) => l.id === "watersheds");
   const basinLayer = layers.find((l) => l.id === "great-lakes-basin");
   const usSpiLayer = layers.find((l) => l.id === "us-spi");
-  const scenarioDef = getScenario(scenario);
+  const scenarioDef = resolveScenario(scenario, customScenario);
   const showAafcSpi = scenarioDef.useAafcSpi && (spiLayer?.visible ?? false);
 
   return (
@@ -510,16 +522,18 @@ function EsriLayers() {
 
 function SihWellsLayer() {
   const map = useMap();
-  const { isLayerVisible, setWellCount, locale, setLegendMode, setSelectedWellScore, scenario, indexWeights, mapTransitioning } =
+  const { isLayerVisible, setWellCount, locale, setLegendMode, setSelectedWellScore, scenario, customScenario, indexWeights, mapTransitioning } =
     useApp();
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
   const featuresRef = useRef<WellFeature[]>([]);
   const loadingRef = useRef(false);
   const localeRef = useRef(locale);
   const scenarioRef = useRef(scenario);
+  const customScenarioRef = useRef(customScenario);
   const indexWeightsRef = useRef(indexWeights);
   localeRef.current = locale;
   scenarioRef.current = scenario;
+  customScenarioRef.current = customScenario;
   indexWeightsRef.current = indexWeights;
 
   const loadWells = useCallback(
@@ -560,6 +574,7 @@ function SihWellsLayer() {
           marker.on("click", async () => {
             const loc = localeRef.current;
             const scen = scenarioRef.current;
+            const custom = customScenarioRef.current;
             const weights = indexWeightsRef.current;
             setLegendMode("composite");
             marker
@@ -576,7 +591,8 @@ function SihWellsLayer() {
               props.DEBT_ESSAI_POMP,
               loc,
               scen,
-              weights
+              weights,
+              custom
             );
 
             setSelectedWellScore(score);

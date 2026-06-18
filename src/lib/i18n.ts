@@ -51,6 +51,7 @@ const messages = {
     compositeIndex: "Composite Drought Index",
     attribution:
       "© Gouvernement du Québec (SIH) · Agriculture and Agri-Food Canada (SPI/SPEI) · OpenStreetMap",
+    copyrightName: "Prosper Mapepa",
     close: "Close",
     language: "English",
     switchLanguage: "Français",
@@ -107,6 +108,13 @@ const messages = {
     phase2: "Phase 2: Climate projections (2050/2100), demographic and economic layers, investment risk reports",
     phase3: "Phase 3: Great Lakes cross-border expansion, public API, user accounts",
     scenarios: "Climate Scenarios",
+    customScenario: "Custom",
+    customScenarioDesc:
+      "Build a custom projection from GeoMet SPEI layers (timescale, RCP, percentile, year)",
+    speiTimescale: "SPEI (months)",
+    rcpPathway: "RCP",
+    ensemblePercentile: "Percentile",
+    projectionYear: "Year",
     compareScenarios: "Compare with current climate",
     viewingScenario: "Scenario",
     investmentRisk: "Investment Risk Assessment",
@@ -192,6 +200,7 @@ const messages = {
     compositeIndex: "Indice composite de sécheresse",
     attribution:
       "© Gouvernement du Québec (SIH) · Agriculture et Agroalimentaire Canada (SPI/SPEI) · OpenStreetMap",
+    copyrightName: "Prosper Mapepa",
     close: "Fermer",
     language: "Français",
     switchLanguage: "English",
@@ -248,6 +257,13 @@ const messages = {
     phase2: "Phase 2 : projections climatiques (2050/2100), couches démographiques et économiques, rapports de risque",
     phase3: "Phase 3 : expansion transfrontalière Grands Lacs, API publique, comptes utilisateurs",
     scenarios: "Scénarios climatiques",
+    customScenario: "Personnalisé",
+    customScenarioDesc:
+      "Construire une projection à partir des couches SPEI GeoMet (échelle, RCP, percentile, année)",
+    speiTimescale: "SPEI (mois)",
+    rcpPathway: "RCP",
+    ensemblePercentile: "Percentile",
+    projectionYear: "Année",
     compareScenarios: "Comparer avec le climat actuel",
     viewingScenario: "Scénario",
     investmentRisk: "Évaluation du risque d'investissement",

@@ -4,7 +4,10 @@ import { buildInvestmentRisk } from "@/lib/investment-risk";
 import { fetchClimateIndices } from "@/lib/climate-data";
 import { parseWeightsFromSearchParams } from "@/lib/index-weights";
 import type { ClimateScenarioId } from "@/lib/scenarios";
-import { getScenario } from "@/lib/scenarios";
+import {
+  parseCustomScenarioFromSearchParams,
+  resolveScenario,
+} from "@/lib/scenarios";
 import type { WatershedProperties } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
@@ -29,7 +32,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "lat and lng required" }, { status: 400 });
   }
 
-  const scenario = getScenario(scenarioId);
+  const customScenario = parseCustomScenarioFromSearchParams(params);
+  const scenario = resolveScenario(scenarioId, customScenario);
   const { spi, spei } = await fetchClimateIndices(
     lat,
     lng,
@@ -43,6 +47,7 @@ export async function GET(request: NextRequest) {
     droughtScore,
     watershed,
     scenarioId,
+    customScenario: scenarioId === "custom" ? customScenario : null,
     locale,
   });
 

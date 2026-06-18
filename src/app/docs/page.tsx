@@ -100,12 +100,28 @@ export default function DocsPage() {
                 <td className="py-2 pr-4 font-mono text-xs">2050-rcp85</td>
                 <td className="py-2">Mid-century, high emissions (RCP 8.5)</td>
               </tr>
-              <tr>
+              <tr className="border-b border-slate-100">
                 <td className="py-2 pr-4 font-mono text-xs">2100-rcp85</td>
                 <td className="py-2">End-of-century, high emissions (RCP 8.5)</td>
               </tr>
+              <tr>
+                <td className="py-2 pr-4 font-mono text-xs align-top">custom</td>
+                <td className="py-2">
+                  Custom GeoMet SPEI projection. Add{" "}
+                  <code className="text-xs bg-slate-200 px-1 rounded">timescale</code> (1|3|12),{" "}
+                  <code className="text-xs bg-slate-200 px-1 rounded">rcp</code> (2.6|4.5|8.5),{" "}
+                  <code className="text-xs bg-slate-200 px-1 rounded">percentile</code> (25|50|75),{" "}
+                  <code className="text-xs bg-slate-200 px-1 rounded">year</code> (2030|2050|2080|2100).
+                </td>
+              </tr>
             </tbody>
           </table>
+          <p className="text-sm text-slate-500 mt-3">
+            Example:{" "}
+            <code className="text-xs bg-slate-200 px-1 rounded break-all">
+              {baseUrl}/api/v1/risk?lat=46.8&lng=-71.2&scenario=custom&timescale=12&rcp=2.6&percentile=75&year=2030
+            </code>
+          </p>
         </section>
 
         <section>
@@ -116,6 +132,10 @@ export default function DocsPage() {
             when integrating into production systems.
           </p>
         </section>
+
+        <p className="text-xs text-slate-400 pt-4 border-t border-slate-200">
+          © {new Date().getFullYear()} Prosper Mapepa · Great Lakes Drought Index
+        </p>
       </main>
     </div>
   );
