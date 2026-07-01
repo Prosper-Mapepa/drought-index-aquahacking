@@ -232,10 +232,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const applyRegionDefaults = useCallback((r: MapRegion) => {
     setMapTransitioning(true);
-    setRegion(r);
     setInvestmentRisk(null);
     setSelectedWatershed(null);
     setCompareRisk(null);
+    setRsesqStation(null);
+    setSelectedWellScore(null);
+    setLegendMode("spi");
+    setRegion(r);
     setLayers((prev) =>
       prev.map((l) => {
         if (r === "great-lakes") {

@@ -5,7 +5,6 @@ import {
   MapContainer,
   useMap,
   useMapEvents,
-  ScaleControl,
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -48,7 +47,79 @@ import {
   safeMapCleanup,
   safeRemoveLayer,
   safeSetPopupContent,
+  safeAddToMap,
+  isMapUsable,
+  deferLayerMutation,
+  useTransitioningRef,
+  bumpAsyncGeneration,
+  isAsyncGenerationStale,
 } from "@/lib/map-safe";
+import type { MutableRefObject } from "react";
+
+function layerEffectCleanup(
+  map: L.Map,
+  layerRef: React.MutableRefObject<L.Layer | null>,
+  transitioningRef: React.MutableRefObject<boolean>,
+  setCancelled: () => void
+) {
+  setCancelled();
+  if (!transitioningRef.current) {
+    safeRemoveLayer(map, layerRef.current);
+    layerRef.current = null;
+  }
+}
+
+/** After async work, bail if the map is transitioning or torn down */
+function abortLayerSync(
+  map: L.Map,
+  transitioningRef: MutableRefObject<boolean>
+): boolean {
+  return transitioningRef.current || !isMapUsable(map);
+}
+
+function MapRegionTransition() {
+  const map = useMap();
+  const { region, mapTransitioning } = useApp();
+  const prevRegion = useRef(region);
+
+  useEffect(() => {
+    if (prevRegion.current !== region) {
+      safeMapCleanup(map);
+      prevRegion.current = region;
+    }
+  }, [region, map]);
+
+  useEffect(() => {
+    if (mapTransitioning) {
+      safeMapCleanup(map);
+    }
+  }, [mapTransitioning, map]);
+
+  return null;
+}
+
+function MapScaleControl() {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!isMapUsable(map)) return;
+    const control = L.control.scale({
+      imperial: true,
+      metric: true,
+      position: "bottomleft",
+    });
+    control.addTo(map);
+    return () => {
+      try {
+        control.remove();
+      } catch {
+        /* map may be gone */
+      }
+    };
+  }, [map]);
+
+  return null;
+}
 
 function MapCleanupGuard() {
   const map = useMap();
@@ -135,6 +206,7 @@ function ClimateProjectionLayer() {
   const { scenario, customScenario, layers, mapTransitioning } = useApp();
   const layerRef = useRef<L.TileLayer.WMS | null>(null);
   const activeLayerRef = useRef<string | null>(null);
+  const transitioningRef = useTransitioningRef(mapTransitioning);
   const scenarioDef = resolveScenario(scenario, customScenario);
   const spiVisible = layers.find((l) => l.id === "spi")?.visible ?? false;
   const wmsLayerId = scenarioDef.wmsLayer;
@@ -148,6 +220,8 @@ function ClimateProjectionLayer() {
     let cancelled = false;
 
     async function sync() {
+      if (deferLayerMutation(mapTransitioning)) return;
+
       if (!active || !wmsLayerId) {
         safeRemoveLayer(map, layerRef.current);
         layerRef.current = null;
@@ -177,20 +251,18 @@ function ClimateProjectionLayer() {
         attribution: "ECCC GeoMet-Climate",
       });
 
-      if (cancelled) return;
-      wms.addTo(map);
+      if (cancelled || abortLayerSync(map, transitioningRef)) return;
+      if (!safeAddToMap(map, wms)) return;
       layerRef.current = wms;
       activeLayerRef.current = wmsLayerId;
     }
 
     sync();
-    return () => {
-      cancelled = true;
-      safeRemoveLayer(map, layerRef.current);
-      layerRef.current = null;
-      activeLayerRef.current = null;
-    };
-  }, [map, active, wmsLayerId]);
+    return () =>
+      layerEffectCleanup(map, layerRef, transitioningRef, () => {
+        cancelled = true;
+      });
+  }, [map, active, wmsLayerId, mapTransitioning]);
 
   return null;
 }
@@ -207,12 +279,13 @@ function AafcSpiLayer({
   const map = useMap();
   const { mapTransitioning } = useApp();
   const layerRef = useRef<L.Layer | null>(null);
+  const transitioningRef = useTransitioningRef(mapTransitioning);
 
   useEffect(() => {
     let cancelled = false;
 
     async function sync() {
-      if (mapTransitioning) return;
+      if (deferLayerMutation(mapTransitioning)) return;
 
       if (!visible) {
         safeRemoveLayer(map, layerRef.current);
@@ -221,7 +294,7 @@ function AafcSpiLayer({
       }
 
       const esri = await esriLoad;
-      if (cancelled) return;
+      if (cancelled || abortLayerSync(map, transitioningRef)) return;
 
       if (layerRef.current && map.hasLayer(layerRef.current)) {
         (layerRef.current as L.Layer & { setOpacity?: (o: number) => void }).setOpacity?.(
@@ -238,16 +311,15 @@ function AafcSpiLayer({
         // esri-leaflet supports this at runtime; prevents blocking map pan/zoom
         interactive: false,
       } as Parameters<typeof esri.imageMapLayer>[0]);
-      layer.addTo(map);
+      if (!safeAddToMap(map, layer)) return;
       layerRef.current = layer;
     }
 
     sync();
-    return () => {
-      cancelled = true;
-      safeRemoveLayer(map, layerRef.current);
-      layerRef.current = null;
-    };
+    return () =>
+      layerEffectCleanup(map, layerRef, transitioningRef, () => {
+        cancelled = true;
+      });
   }, [map, visible, opacity, mapTransitioning]);
 
   return null;
@@ -261,12 +333,16 @@ function AafcSpeiLayer({
   opacity: number;
 }) {
   const map = useMap();
+  const { mapTransitioning } = useApp();
   const layerRef = useRef<L.Layer | null>(null);
+  const transitioningRef = useTransitioningRef(mapTransitioning);
 
   useEffect(() => {
     let cancelled = false;
 
     async function sync() {
+      if (deferLayerMutation(mapTransitioning)) return;
+
       if (!visible) {
         safeRemoveLayer(map, layerRef.current);
         layerRef.current = null;
@@ -274,7 +350,7 @@ function AafcSpeiLayer({
       }
 
       const esri = await esriLoad;
-      if (cancelled) return;
+      if (cancelled || abortLayerSync(map, transitioningRef)) return;
 
       if (layerRef.current && map.hasLayer(layerRef.current)) {
         (layerRef.current as L.Layer & { setOpacity?: (o: number) => void }).setOpacity?.(
@@ -290,17 +366,16 @@ function AafcSpeiLayer({
         attribution: "Agriculture and Agri-Food Canada",
         interactive: false,
       } as Parameters<typeof esri.imageMapLayer>[0]);
-      layer.addTo(map);
+      if (!safeAddToMap(map, layer)) return;
       layerRef.current = layer;
     }
 
     sync();
-    return () => {
-      cancelled = true;
-      safeRemoveLayer(map, layerRef.current);
-      layerRef.current = null;
-    };
-  }, [map, visible, opacity]);
+    return () =>
+      layerEffectCleanup(map, layerRef, transitioningRef, () => {
+        cancelled = true;
+      });
+  }, [map, visible, opacity, mapTransitioning]);
 
   return null;
 }
@@ -320,11 +395,13 @@ function WatershedEsriLayer({
     customScenario,
     compareMode,
     indexWeights,
+    mapTransitioning,
     setSelectedWatershed,
     setInvestmentRisk,
     setCompareRisk,
     setRiskLocation,
   } = useApp();
+  const transitioningRef = useTransitioningRef(mapTransitioning);
   const localeRef = useRef(locale);
   const scenarioRef = useRef(scenario);
   const customScenarioRef = useRef(customScenario);
@@ -340,6 +417,8 @@ function WatershedEsriLayer({
     let cancelled = false;
 
     async function sync() {
+      if (deferLayerMutation(mapTransitioning)) return;
+
       if (!visible) {
         safeMapCleanup(map);
         safeRemoveLayer(map, layerRef.current);
@@ -348,7 +427,7 @@ function WatershedEsriLayer({
       }
 
       const esri = await esriLoad;
-      if (cancelled) return;
+      if (cancelled || abortLayerSync(map, transitioningRef)) return;
 
       if (layerRef.current && map.hasLayer(layerRef.current)) {
         const fl = layerRef.current as L.Layer & {
@@ -428,20 +507,20 @@ function WatershedEsriLayer({
           });
         },
       });
-      watershed.addTo(map);
+      if (!safeAddToMap(map, watershed)) return;
       layerRef.current = watershed;
     }
 
     sync();
-    return () => {
-      cancelled = true;
-      safeRemoveLayer(map, layerRef.current);
-      layerRef.current = null;
-    };
+    return () =>
+      layerEffectCleanup(map, layerRef, transitioningRef, () => {
+        cancelled = true;
+      });
   }, [
     map,
     visible,
     opacity,
+    mapTransitioning,
     setSelectedWatershed,
     setInvestmentRisk,
     setCompareRisk,
@@ -459,8 +538,9 @@ function GreatLakesBasinLayer({
   opacity: number;
 }) {
   const map = useMap();
+  const { mapTransitioning, locale } = useApp();
   const layerRef = useRef<L.Layer | null>(null);
-  const { locale } = useApp();
+  const transitioningRef = useTransitioningRef(mapTransitioning);
   const localeRef = useRef(locale);
   localeRef.current = locale;
 
@@ -468,6 +548,8 @@ function GreatLakesBasinLayer({
     let cancelled = false;
 
     async function sync() {
+      if (deferLayerMutation(mapTransitioning)) return;
+
       if (!visible) {
         safeRemoveLayer(map, layerRef.current);
         layerRef.current = null;
@@ -475,7 +557,7 @@ function GreatLakesBasinLayer({
       }
 
       const esri = await esriLoad;
-      if (cancelled) return;
+      if (cancelled || abortLayerSync(map, transitioningRef)) return;
 
       safeRemoveLayer(map, layerRef.current);
       const basin = esri.featureLayer({
@@ -502,17 +584,16 @@ function GreatLakesBasinLayer({
           );
         },
       });
-      basin.addTo(map);
+      if (!safeAddToMap(map, basin)) return;
       layerRef.current = basin;
     }
 
     sync();
-    return () => {
-      cancelled = true;
-      safeRemoveLayer(map, layerRef.current);
-      layerRef.current = null;
-    };
-  }, [map, visible, opacity]);
+    return () =>
+      layerEffectCleanup(map, layerRef, transitioningRef, () => {
+        cancelled = true;
+      });
+  }, [map, visible, opacity, mapTransitioning]);
 
   return null;
 }
@@ -525,8 +606,9 @@ function UsSpiLayer({
   opacity: number;
 }) {
   const map = useMap();
+  const { mapTransitioning, locale } = useApp();
   const layerRef = useRef<L.Layer | null>(null);
-  const { locale } = useApp();
+  const transitioningRef = useTransitioningRef(mapTransitioning);
   const localeRef = useRef(locale);
   localeRef.current = locale;
 
@@ -534,6 +616,8 @@ function UsSpiLayer({
     let cancelled = false;
 
     async function sync() {
+      if (deferLayerMutation(mapTransitioning)) return;
+
       if (!visible) {
         safeRemoveLayer(map, layerRef.current);
         layerRef.current = null;
@@ -541,7 +625,7 @@ function UsSpiLayer({
       }
 
       const esri = await esriLoad;
-      if (cancelled) return;
+      if (cancelled || abortLayerSync(map, transitioningRef)) return;
 
       safeRemoveLayer(map, layerRef.current);
       const usSpi = esri.featureLayer({
@@ -577,17 +661,16 @@ function UsSpiLayer({
           });
         },
       });
-      usSpi.addTo(map);
+      if (!safeAddToMap(map, usSpi)) return;
       layerRef.current = usSpi;
     }
 
     sync();
-    return () => {
-      cancelled = true;
-      safeRemoveLayer(map, layerRef.current);
-      layerRef.current = null;
-    };
-  }, [map, visible, opacity]);
+    return () =>
+      layerEffectCleanup(map, layerRef, transitioningRef, () => {
+        cancelled = true;
+      });
+  }, [map, visible, opacity, mapTransitioning]);
 
   return null;
 }
@@ -600,13 +683,16 @@ function RsesqStationsLayer({
   opacity: number;
 }) {
   const map = useMap();
+  const { mapTransitioning, setRsesqStation } = useApp();
   const layerRef = useRef<L.Layer | null>(null);
-  const { setRsesqStation } = useApp();
+  const transitioningRef = useTransitioningRef(mapTransitioning);
 
   useEffect(() => {
     let cancelled = false;
 
     async function sync() {
+      if (deferLayerMutation(mapTransitioning)) return;
+
       if (!visible) {
         safeRemoveLayer(map, layerRef.current);
         layerRef.current = null;
@@ -614,7 +700,7 @@ function RsesqStationsLayer({
       }
 
       const esri = await esriLoad;
-      if (cancelled) return;
+      if (cancelled || abortLayerSync(map, transitioningRef)) return;
 
       safeRemoveLayer(map, layerRef.current);
       const stations = esri.featureLayer({
@@ -647,17 +733,16 @@ function RsesqStationsLayer({
           });
         },
       });
-      stations.addTo(map);
+      if (!safeAddToMap(map, stations)) return;
       layerRef.current = stations;
     }
 
     sync();
-    return () => {
-      cancelled = true;
-      safeRemoveLayer(map, layerRef.current);
-      layerRef.current = null;
-    };
-  }, [map, visible, opacity, setRsesqStation]);
+    return () =>
+      layerEffectCleanup(map, layerRef, transitioningRef, () => {
+        cancelled = true;
+      });
+  }, [map, visible, opacity, mapTransitioning, setRsesqStation]);
 
   return null;
 }
@@ -670,12 +755,16 @@ function LandUseLayer({
   opacity: number;
 }) {
   const map = useMap();
+  const { mapTransitioning } = useApp();
   const layerRef = useRef<L.Layer | null>(null);
+  const transitioningRef = useTransitioningRef(mapTransitioning);
 
   useEffect(() => {
     let cancelled = false;
 
     async function sync() {
+      if (deferLayerMutation(mapTransitioning)) return;
+
       if (!visible) {
         safeRemoveLayer(map, layerRef.current);
         layerRef.current = null;
@@ -683,7 +772,7 @@ function LandUseLayer({
       }
 
       const esri = await esriLoad;
-      if (cancelled) return;
+      if (cancelled || abortLayerSync(map, transitioningRef)) return;
 
       safeRemoveLayer(map, layerRef.current);
       const landUse = esri.featureLayer({
@@ -705,17 +794,16 @@ function LandUseLayer({
           );
         },
       });
-      landUse.addTo(map);
+      if (!safeAddToMap(map, landUse)) return;
       layerRef.current = landUse;
     }
 
     sync();
-    return () => {
-      cancelled = true;
-      safeRemoveLayer(map, layerRef.current);
-      layerRef.current = null;
-    };
-  }, [map, visible, opacity]);
+    return () =>
+      layerEffectCleanup(map, layerRef, transitioningRef, () => {
+        cancelled = true;
+      });
+  }, [map, visible, opacity, mapTransitioning]);
 
   return null;
 }
@@ -728,12 +816,16 @@ function GtcSitesLayer({
   opacity: number;
 }) {
   const map = useMap();
+  const { mapTransitioning } = useApp();
   const layerRef = useRef<L.Layer | null>(null);
+  const transitioningRef = useTransitioningRef(mapTransitioning);
 
   useEffect(() => {
     let cancelled = false;
 
     async function sync() {
+      if (deferLayerMutation(mapTransitioning)) return;
+
       if (!visible) {
         safeRemoveLayer(map, layerRef.current);
         layerRef.current = null;
@@ -741,7 +833,7 @@ function GtcSitesLayer({
       }
 
       const esri = await esriLoad;
-      if (cancelled) return;
+      if (cancelled || abortLayerSync(map, transitioningRef)) return;
 
       safeRemoveLayer(map, layerRef.current);
       const gtc = esri.featureLayer({
@@ -765,17 +857,16 @@ function GtcSitesLayer({
           );
         },
       });
-      gtc.addTo(map);
+      if (!safeAddToMap(map, gtc)) return;
       layerRef.current = gtc;
     }
 
     sync();
-    return () => {
-      cancelled = true;
-      safeRemoveLayer(map, layerRef.current);
-      layerRef.current = null;
-    };
-  }, [map, visible, opacity]);
+    return () =>
+      layerEffectCleanup(map, layerRef, transitioningRef, () => {
+        cancelled = true;
+      });
+  }, [map, visible, opacity, mapTransitioning]);
 
   return null;
 }
@@ -844,29 +935,63 @@ function SihWellsLayer() {
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
   const featuresRef = useRef<WellFeature[]>([]);
   const loadingRef = useRef(false);
+  const loadGenerationRef = useRef(0);
+  const transitioningRef = useTransitioningRef(mapTransitioning);
+  const regionRef = useRef(region);
   const localeRef = useRef(locale);
   const scenarioRef = useRef(scenario);
   const customScenarioRef = useRef(customScenario);
+  const sihVisibleRef = useRef(isLayerVisible("sih-wells"));
+  regionRef.current = region;
   localeRef.current = locale;
   scenarioRef.current = scenario;
   customScenarioRef.current = customScenario;
+  sihVisibleRef.current = isLayerVisible("sih-wells");
+
+  const clearWells = useCallback(() => {
+    if (!isMapUsable(map)) {
+      layerGroupRef.current = null;
+      featuresRef.current = [];
+      return;
+    }
+    safeMapCleanup(map);
+    safeRemoveLayer(map, layerGroupRef.current);
+    layerGroupRef.current = null;
+    featuresRef.current = [];
+    setWellCount(0);
+  }, [map, setWellCount]);
+
+  useEffect(() => {
+    bumpAsyncGeneration(loadGenerationRef);
+    loadingRef.current = false;
+
+    if (region !== "quebec" || !isLayerVisible("sih-wells")) {
+      if (!deferLayerMutation(mapTransitioning)) {
+        clearWells();
+      }
+    }
+  }, [region, mapTransitioning, isLayerVisible, clearWells]);
 
   const loadWells = useCallback(
     async (bounds: L.LatLngBounds, zoom: number) => {
-      if (
-        region !== "quebec" ||
-        !isLayerVisible("sih-wells") ||
-        zoom < SIH_MIN_ZOOM ||
-        mapTransitioning
-      ) {
-        safeRemoveLayer(map, layerGroupRef.current);
-        layerGroupRef.current = null;
-        setWellCount(0);
-        featuresRef.current = [];
+      const token = loadGenerationRef.current;
+
+      const isStale = () =>
+        isAsyncGenerationStale(loadGenerationRef, token) ||
+        transitioningRef.current ||
+        regionRef.current !== "quebec" ||
+        !sihVisibleRef.current ||
+        !isMapUsable(map);
+
+      if (regionRef.current !== "quebec" || !sihVisibleRef.current || zoom < SIH_MIN_ZOOM) {
+        if (!deferLayerMutation(transitioningRef.current)) {
+          clearWells();
+        }
         return;
       }
 
-      if (loadingRef.current) return;
+      if (transitioningRef.current || loadingRef.current) return;
+
       loadingRef.current = true;
 
       try {
@@ -874,6 +999,9 @@ function SihWellsLayer() {
         const ne = bounds.getNorthEast();
         const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
         const features = await queryAllSihWellsInBbox(bbox);
+
+        if (isStale()) return;
+
         featuresRef.current = features;
         setWellCount(features.length);
 
@@ -882,6 +1010,8 @@ function SihWellsLayer() {
 
         const group = L.layerGroup();
         for (const feature of features) {
+          if (isStale()) return;
+
           const [lng, lat] = feature.geometry.coordinates;
           const props = feature.properties;
           const marker = L.circleMarker([lat, lng], {
@@ -914,7 +1044,7 @@ function SihWellsLayer() {
               custom
             );
 
-            if (!map.hasLayer(marker)) return;
+            if (!isMapUsable(map) || !map.hasLayer(marker)) return;
             setSelectedWellScore(score);
             safeSetPopupContent(marker, formatWellPopup(props, score, loc));
           });
@@ -926,37 +1056,41 @@ function SihWellsLayer() {
 
           group.addLayer(marker);
         }
-        group.addTo(map);
+
+        if (isStale()) return;
+
+        if (!safeAddToMap(map, group)) return;
         layerGroupRef.current = group;
       } catch (err) {
-        console.error("Failed to load SIH wells:", err);
+        if (!isAsyncGenerationStale(loadGenerationRef, token)) {
+          console.error("Failed to load SIH wells:", err);
+        }
       } finally {
-        loadingRef.current = false;
+        if (!isAsyncGenerationStale(loadGenerationRef, token)) {
+          loadingRef.current = false;
+        }
       }
     },
-    [map, isLayerVisible, setWellCount, setLegendMode, setSelectedWellScore, region, mapTransitioning]
+    [map, setWellCount, setLegendMode, setSelectedWellScore, clearWells, transitioningRef]
   );
 
   useMapEvents({
     moveend() {
-      if (mapTransitioning) return;
+      if (transitioningRef.current) return;
       loadWells(map.getBounds(), map.getZoom());
     },
     zoomend() {
-      if (mapTransitioning) return;
+      if (transitioningRef.current) return;
       loadWells(map.getBounds(), map.getZoom());
     },
   });
 
   useEffect(() => {
-    if (mapTransitioning) return;
+    if (transitioningRef.current) return;
     loadWells(map.getBounds(), map.getZoom());
-    return () => {
-      safeMapCleanup(map);
-      safeRemoveLayer(map, layerGroupRef.current);
-      layerGroupRef.current = null;
-    };
-  }, [map, loadWells, isLayerVisible, region, mapTransitioning]);
+    return () =>
+      layerEffectCleanup(map, layerGroupRef, transitioningRef, () => {});
+  }, [map, loadWells, region, mapTransitioning]);
 
   useEffect(() => {
     (window as unknown as { __sihFeatures: WellFeature[] }).__sihFeatures =
@@ -1141,8 +1275,8 @@ function BaseLayers() {
       );
     }
 
-    if (cancelled) return;
-    base.addTo(map);
+    if (cancelled || !isMapUsable(map)) return;
+    if (!safeAddToMap(map, base)) return;
     baseRef.current = base;
 
     if (showSatellite || showTerrain) {
@@ -1150,8 +1284,9 @@ function BaseLayers() {
         "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
         { attribution: "", maxZoom: MAX_ZOOM, pane: "overlayPane" }
       );
-      labels.addTo(map);
-      labelsRef.current = labels;
+      if (safeAddToMap(map, labels)) {
+        labelsRef.current = labels;
+      }
     }
 
     return () => {
@@ -1195,6 +1330,7 @@ export function DroughtMap() {
       >
         <MapInstanceRegistrar onMap={handleMapInstance} />
         <MapCleanupGuard />
+        <MapRegionTransition />
         <BaseLayers />
         <EsriLayers />
         <ClimateProjectionLayer />
@@ -1204,7 +1340,7 @@ export function DroughtMap() {
         <MapSearch />
         <CoordinateTracker />
         <MapEventHandler onMove={handleMove} />
-        <ScaleControl position="bottomleft" imperial metric />
+        <MapScaleControl />
       </MapContainer>
       <MapOverlayControls map={leafletMap} />
       <ExportControlsOverlay />

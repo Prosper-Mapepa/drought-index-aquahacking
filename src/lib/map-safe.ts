@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { useRef, type MutableRefObject } from "react";
 
 /** Close any open popup and stop animations before DOM teardown */
 export function safeMapCleanup(map: L.Map | null | undefined) {
@@ -11,8 +12,44 @@ export function safeMapCleanup(map: L.Map | null | undefined) {
   }
 }
 
+/** True when the Leaflet map container and overlay pane are attached and usable */
+export function isMapUsable(map: L.Map | null | undefined): map is L.Map {
+  if (!map) return false;
+  try {
+    const container = map.getContainer();
+    if (!container?.isConnected) return false;
+    const panes = (map as L.Map & { _panes?: Record<string, HTMLElement> })._panes;
+    return Boolean(panes?.overlayPane?.parentNode);
+  } catch {
+    return false;
+  }
+}
+
+/** Add a layer only when the map DOM is in a valid state */
+export function safeAddToMap(map: L.Map, layer: L.Layer): boolean {
+  if (!isMapUsable(map)) return false;
+  try {
+    layer.addTo(map);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Keep ref in sync so effect cleanups see the latest transition flag */
+export function useTransitioningRef(mapTransitioning: boolean) {
+  const ref = useRef(mapTransitioning);
+  ref.current = mapTransitioning;
+  return ref;
+}
+
+/** Skip layer add/remove during region fly — avoids Leaflet/React removeChild races */
+export function deferLayerMutation(mapTransitioning: boolean): boolean {
+  return mapTransitioning;
+}
+
 export function safeRemoveLayer(map: L.Map, layer?: L.Layer | null) {
-  if (!layer) return;
+  if (!layer || !isMapUsable(map)) return;
   try {
     const withPopup = layer as L.Layer & {
       getPopup?: () => L.Popup | undefined;
@@ -66,4 +103,17 @@ export function safeCloseLayerPopup(layer: L.Layer, map?: L.Map) {
   } catch {
     /* ignore */
   }
+}
+
+/** Invalidate in-flight async layer work (e.g. after region switch) */
+export function bumpAsyncGeneration(ref: MutableRefObject<number>): number {
+  ref.current += 1;
+  return ref.current;
+}
+
+export function isAsyncGenerationStale(
+  ref: MutableRefObject<number>,
+  token: number
+): boolean {
+  return token !== ref.current;
 }
