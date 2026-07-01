@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { t } from "@/lib/i18n";
+import { cn } from "@/lib/cn";
 import type { LayerId, MapRegion } from "@/lib/types";
 
 interface LayerGroupProps {
@@ -14,11 +15,14 @@ interface LayerGroupProps {
 function LayerGroup({ title, children, defaultOpen = true }: LayerGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-b border-sidebar-border">
+    <div className="border-b border-sidebar-border/80">
       <button className="layer-group-header" onClick={() => setOpen(!open)}>
-        <span>{title}</span>
+        <span className="flex items-center gap-2">
+          <span className={cn("w-1 h-3 rounded-full bg-accent/60 transition-opacity", open ? "opacity-100" : "opacity-40")} />
+          {title}
+        </span>
         <svg
-          className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`}
+          className={cn("w-4 h-4 text-white/50 transition-transform duration-200", open && "rotate-180")}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -26,7 +30,7 @@ function LayerGroup({ title, children, defaultOpen = true }: LayerGroupProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {open && <div className="pb-1">{children}</div>}
+      {open && <div className="pb-1.5">{children}</div>}
     </div>
   );
 }
@@ -53,10 +57,10 @@ function LayerToggle({
           onChange={() => toggleLayer(id)}
           className="w-3.5 h-3.5 accent-accent rounded"
         />
-        <span className={visible ? "text-white" : ""}>{label}</span>
+        <span className={cn("transition-colors", visible ? "text-white font-medium" : "")}>{label}</span>
       </label>
       {showOpacity && visible && (
-        <div className="px-8 pb-2">
+        <div className="px-8 pb-2 pt-0.5">
           <input
             type="range"
             min={0}
@@ -79,20 +83,19 @@ function RegionSelector() {
   ];
 
   return (
-    <div className="px-4 py-3 border-b border-sidebar-border">
-      <p className="text-[10px] uppercase tracking-wide text-white/40 mb-2">
-        {t(locale, "mapRegion")}
-      </p>
-      <div className="flex gap-1">
+    <div className="px-4 py-3.5 border-b border-sidebar-border/80">
+      <p className="text-overline text-white/40 mb-2.5">{t(locale, "mapRegion")}</p>
+      <div className="flex gap-1.5 p-1 bg-black/20 rounded-lg">
         {regions.map((r) => (
           <button
             key={r.id}
             onClick={() => applyRegionDefaults(r.id)}
-            className={`flex-1 py-1.5 text-[13px] font-medium rounded-md transition-colors ${
+            className={cn(
+              "flex-1 py-2 text-[13px] font-medium rounded-md transition-all duration-150",
               region === r.id
-                ? "bg-accent text-white"
-                : "bg-white/10 text-white/70 hover:bg-white/15"
-            }`}
+                ? "bg-accent text-white shadow-sm"
+                : "text-white/65 hover:text-white hover:bg-white/8"
+            )}
           >
             {r.label}
           </button>
@@ -102,44 +105,28 @@ function RegionSelector() {
   );
 }
 
-function IndexWeightsPanel() {
-  const { locale, indexWeights, setIndexWeights, resetIndexWeights } = useApp();
-  const keys = [
-    { key: "spi" as const, label: "SPI" },
-    { key: "spei" as const, label: "SPEI" },
-    { key: "groundwater" as const, label: t(locale, "groundwater") },
-    { key: "yield" as const, label: t(locale, "yield") },
+function IrhtWeightsPanel() {
+  const { locale } = useApp();
+  const components = [
+    { label: t(locale, "irhtComponentClimate"), pct: "25%" },
+    { label: t(locale, "irhtComponentHydrology"), pct: "20%" },
+    { label: t(locale, "irhtComponentHydrogeology"), pct: "15%" },
+    { label: t(locale, "irhtComponentTerritory"), pct: "15%" },
+    { label: t(locale, "irhtComponentDemographic"), pct: "10%" },
+    { label: t(locale, "irhtComponentEconomy"), pct: "15%" },
   ];
 
   return (
-    <div className="px-4 py-2 space-y-2">
-      {keys.map(({ key, label }) => (
-        <div key={key}>
-          <div className="flex justify-between text-[11px] text-white/70 mb-0.5">
-            <span>{label}</span>
-            <span>{Math.round(indexWeights[key] * 100)}%</span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={indexWeights[key] * 100}
-            onChange={(e) =>
-              setIndexWeights({
-                ...indexWeights,
-                [key]: Number(e.target.value) / 100,
-              })
-            }
-            className="opacity-slider w-full"
-          />
+    <div className="px-4 py-2 space-y-1">
+      <p className="text-caption text-white/45 leading-relaxed mb-2.5">
+        {t(locale, "irhtFormulaDesc")}
+      </p>
+      {components.map(({ label, pct }) => (
+        <div key={label} className="flex justify-between text-caption text-white/70 py-0.5">
+          <span>{label}</span>
+          <span className="text-data text-white/45">{pct}</span>
         </div>
       ))}
-      <button
-        onClick={resetIndexWeights}
-        className="text-[10px] text-white/50 hover:text-white/80 transition-colors"
-      >
-        {t(locale, "resetWeights")}
-      </button>
     </div>
   );
 }
@@ -164,43 +151,43 @@ function SavedAreasPanel() {
 
   return (
     <div className="px-4 py-2 space-y-2">
-      <div className="flex gap-1">
+      <div className="flex gap-1.5">
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={t(locale, "areaNamePlaceholder")}
-          className="flex-1 px-2 py-1 text-[11px] bg-white/10 border border-white/10 rounded text-white placeholder-white/30"
+          className="flex-1 px-2.5 py-1.5 text-caption bg-white/8 border border-white/10 rounded-md text-white placeholder-white/30 focus:border-accent/40 focus:outline-none transition-colors"
           onKeyDown={(e) => e.key === "Enter" && handleSave()}
         />
         <button
           onClick={handleSave}
-          className="px-2 py-1 text-[11px] bg-accent hover:bg-accent-hover text-white rounded"
+          className="px-2.5 py-1.5 text-caption bg-accent hover:bg-accent-hover text-white rounded-md transition-colors font-medium"
         >
           {t(locale, "saveArea")}
         </button>
       </div>
       {savedAreas.length === 0 ? (
-        <p className="text-[10px] text-white/40">{t(locale, "noSavedAreas")}</p>
+        <p className="text-overline text-white/35 normal-case tracking-normal font-normal">{t(locale, "noSavedAreas")}</p>
       ) : (
-        <ul className="space-y-1 max-h-28 overflow-y-auto sidebar-scroll">
+        <ul className="space-y-0.5 max-h-28 overflow-y-auto sidebar-scroll">
           {savedAreas.map((area) => (
             <li
               key={area.id}
-              className="flex items-center justify-between gap-1 group"
+              className="flex items-center justify-between gap-1 group rounded-md hover:bg-white/5 px-1 -mx-1"
             >
               <button
                 onClick={() => {
                   applyRegionDefaults(area.region);
                   requestFlyTo(area.center, area.zoom);
                 }}
-                className="text-[11px] text-white/80 hover:text-white truncate text-left flex-1"
+                className="text-caption text-white/80 hover:text-white truncate text-left flex-1 py-1"
               >
                 {area.name}
               </button>
               <button
                 onClick={() => deleteSavedArea(area.id)}
-                className="text-white/30 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100"
+                className="text-white/30 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity p-1"
               >
                 ×
               </button>
@@ -219,19 +206,19 @@ function SidebarExpandTab() {
     <button
       type="button"
       onClick={() => setSidebarOpen(true)}
-      className="fixed left-0 z-[1100] flex items-center gap-2 bg-sidebar text-white 
-                 py-2.5 pl-2 pr-3 rounded-r-lg border border-l-0 border-sidebar-border 
-                 shadow-lg hover:bg-sidebar-hover transition-colors pointer-events-auto"
+      className="fixed left-0 z-sidebar flex items-center gap-2 bg-sidebar text-white
+                 py-2.5 pl-2 pr-3.5 rounded-r-xl border border-l-0 border-sidebar-border
+                 shadow-chrome hover:bg-sidebar-hover transition-all duration-150 pointer-events-auto group"
       style={{
         top: "calc(var(--header-height) + (100dvh - var(--header-height) - var(--footer-height)) / 2)",
         transform: "translateY(-50%)",
       }}
       aria-label={t(locale, "openLayers")}
     >
-      <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="w-5 h-5 shrink-0 text-accent group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
       </svg>
-      <span className="text-xs font-semibold pr-1">{t(locale, "openLayers")}</span>
+      <span className="text-xs font-semibold pr-0.5">{t(locale, "openLayers")}</span>
     </button>
   );
 }
@@ -246,7 +233,7 @@ export function Sidebar() {
       {sidebarOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-[1050] bg-black/40 md:hidden"
+          className="fixed inset-0 z-[1050] bg-black/50 backdrop-blur-[2px] md:hidden"
           style={{
             top: "var(--header-height)",
             bottom: "var(--footer-height)",
@@ -257,11 +244,12 @@ export function Sidebar() {
       )}
 
       <aside
-        className={`fixed z-[1060] flex flex-col bg-sidebar border-r border-sidebar-border
-          w-[min(300px,88vw)] md:w-[var(--sidebar-width)]
-          transition-transform duration-200 ease-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"}
-        `}
+        className={cn(
+          "fixed z-sidebar flex flex-col chrome-gradient border-r border-sidebar-border",
+          "w-[min(300px,88vw)] md:w-[var(--sidebar-width)]",
+          "transition-transform duration-300 ease-out shadow-chrome",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
+        )}
         style={{
           top: "var(--header-height)",
           bottom: "var(--footer-height)",
@@ -269,11 +257,12 @@ export function Sidebar() {
         }}
         aria-hidden={!sidebarOpen}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border shrink-0">
-          <h2 className="text-sm font-semibold text-white">{t(locale, "layers")}</h2>
+        <div className="relative flex items-center justify-between px-4 py-3.5 border-b border-sidebar-border/80 shrink-0">
+          <div className="accent-stripe" aria-hidden />
+          <h2 className="text-sm font-semibold text-white tracking-tight">{t(locale, "layers")}</h2>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="text-white/50 hover:text-white transition-colors p-1"
+            className="text-white/45 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/8"
             aria-label={t(locale, "close")}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -296,6 +285,14 @@ export function Sidebar() {
           {region === "quebec" && (
             <LayerGroup title={t(locale, "groundwater")}>
               <LayerToggle id="sih-wells" label={t(locale, "sihWells")} />
+              <LayerToggle id="rsesq-stations" label={t(locale, "rsesqStations")} />
+            </LayerGroup>
+          )}
+
+          {region === "quebec" && (
+            <LayerGroup title={t(locale, "territorialLayers")}>
+              <LayerToggle id="land-use" label={t(locale, "landUseLayer")} showOpacity />
+              <LayerToggle id="gtc-sites" label={t(locale, "gtcSites")} />
             </LayerGroup>
           )}
 
@@ -312,7 +309,7 @@ export function Sidebar() {
           </LayerGroup>
 
           <LayerGroup title={t(locale, "indexWeights")} defaultOpen={false}>
-            <IndexWeightsPanel />
+            <IrhtWeightsPanel />
           </LayerGroup>
 
           <LayerGroup title={t(locale, "savedAreas")} defaultOpen={false}>
@@ -320,9 +317,9 @@ export function Sidebar() {
           </LayerGroup>
         </div>
 
-        <div className="px-4 py-3 border-t border-sidebar-border text-xs text-white/50 space-y-1 shrink-0">
+        <div className="px-4 py-3.5 border-t border-sidebar-border/80 text-caption text-white/50 space-y-1 shrink-0 bg-black/15">
           {region === "quebec" && wellCount > 0 ? (
-            <span>
+            <span className="text-white/70 font-medium">
               {wellCount.toLocaleString()} {t(locale, "wellsLoaded")}
             </span>
           ) : region === "quebec" ? (

@@ -11,6 +11,7 @@ declare module "esri-leaflet" {
     url: string;
     style?: (feature?: GeoJSON.Feature) => L.PathOptions;
     opacity?: number;
+    pointToLayer?: (feature: GeoJSON.Feature, latlng: L.LatLng) => L.Layer;
     onEachFeature?: (feature: GeoJSON.Feature, layer: L.Layer) => void;
   }): L.Layer;
 

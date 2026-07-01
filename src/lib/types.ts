@@ -1,5 +1,7 @@
 export type Locale = "en" | "fr";
 
+import type { ClimateScenarioId } from "./scenarios";
+
 export interface WellFeature {
   type: "Feature";
   geometry: {
@@ -40,9 +42,12 @@ export interface GeoJSONCollection {
 
 export type LayerId =
   | "sih-wells"
+  | "rsesq-stations"
   | "spi"
   | "spei"
   | "watersheds"
+  | "land-use"
+  | "gtc-sites"
   | "great-lakes-basin"
   | "us-spi"
   | "satellite"
@@ -55,6 +60,20 @@ export interface IndexWeights {
   spei: number;
   groundwater: number;
   yield: number;
+  landUse: number;
+  contamination: number;
+  demographic: number;
+}
+
+export interface RsesqTimeSeriesPoint {
+  date: string;
+  level: number;
+}
+
+export interface RsesqStationSelection {
+  name: string;
+  stationId: string | null;
+  series: RsesqTimeSeriesPoint[];
 }
 
 export interface SavedArea {
@@ -70,6 +89,8 @@ export interface FlyToTarget {
   center: [number, number];
   zoom: number;
   id?: number;
+  /** Apply climate scenario after fly animation completes */
+  scenarioAfter?: ClimateScenarioId;
 }
 
 export interface LayerState {

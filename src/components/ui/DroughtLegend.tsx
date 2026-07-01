@@ -3,49 +3,63 @@
 import { useApp } from "@/context/AppContext";
 import { t } from "@/lib/i18n";
 import { DROUGHT_COLORS } from "@/lib/constants";
-import { riskTierColor } from "@/lib/drought-index";
+import { irhtDisplayColor, resilienceLevelColor } from "@/lib/drought-index";
+import { useMapBottomInset, useMapChromeHidden } from "@/lib/map-chrome";
+import { MapGlassCard } from "@/components/ui/primitives";
+import { cn } from "@/lib/cn";
 
 export function DroughtLegend() {
   const { locale, isLayerVisible, legendMode, selectedWellScore } = useApp();
-  const showLegend = isLayerVisible("spi") || isLayerVisible("spei") || legendMode === "composite";
+  const bottomInset = useMapBottomInset();
+  const chromeHidden = useMapChromeHidden();
+  const showLegend =
+    isLayerVisible("spi") ||
+    isLayerVisible("spei") ||
+    isLayerVisible("us-spi") ||
+    legendMode === "composite";
 
   if (!showLegend) return null;
 
+  const posClass = cn("absolute z-legend", bottomInset, "right-2 sm:right-3");
+
   if (legendMode === "composite") {
     const tiers = [
-      { tier: "low" as const, key: "riskLow" as const },
-      { tier: "moderate" as const, key: "riskModerate" as const },
-      { tier: "high" as const, key: "riskHigh" as const },
-      { tier: "extreme" as const, key: "riskExtreme" as const },
+      { level: "veryHigh" as const, key: "irhtVeryHigh" as const },
+      { level: "high" as const, key: "irhtHigh" as const },
+      { level: "moderate" as const, key: "irhtModerate" as const },
+      { level: "low" as const, key: "irhtLow" as const },
+      { level: "critical" as const, key: "irhtCritical" as const },
     ];
 
     return (
-      <div className="absolute bottom-24 sm:bottom-10 right-2 sm:right-3 z-[1000] bg-white/95 backdrop-blur rounded-lg shadow-lg p-2 sm:p-3 text-[10px] sm:text-xs max-w-[min(220px,calc(100vw-5rem))]">
-        <h3 className="font-semibold text-slate-800 mb-1">
-          {t(locale, "compositeLegend")}
-        </h3>
-        {selectedWellScore?.composite != null && (
-          <div className="text-[11px] text-slate-500 mb-2 pb-2 border-b border-slate-100">
-            <span className="font-mono font-semibold text-slate-800 text-sm">
-              {selectedWellScore.composite.toFixed(2)}
+      <MapGlassCard className={cn(posClass, "p-2.5 sm:p-3 text-[10px] sm:text-xs max-w-[min(240px,calc(100vw-5rem))]", chromeHidden && "opacity-90")}>
+        <h3 className="text-panel-title mb-1.5">{t(locale, "irhtLegend")}</h3>
+        {selectedWellScore?.irht != null && (
+          <div className="text-caption text-slate-500 mb-2 pb-2 border-b border-surface-border">
+            <span
+              className="text-data font-semibold text-sm"
+              style={{ color: irhtDisplayColor(selectedWellScore.irht) }}
+            >
+              {selectedWellScore.irht.toFixed(1)}
             </span>
+            <span className="text-slate-400"> /100</span>
             {" · "}
             {selectedWellScore.riskLabel}
           </div>
         )}
-        <p className="text-[10px] text-slate-400 mb-2">{t(locale, "legendWellHint")}</p>
+        <p className="text-overline text-slate-400 normal-case tracking-normal font-normal mb-2">{t(locale, "legendWellHint")}</p>
         <div className="space-y-1.5">
-          {tiers.map(({ tier, key }) => (
-            <div key={tier} className="flex items-center gap-2">
+          {tiers.map(({ level, key }) => (
+            <div key={level} className="flex items-center gap-2">
               <span
-                className="w-4 h-3 rounded-sm shrink-0"
-                style={{ backgroundColor: riskTierColor(tier) }}
+                className="w-4 h-3 rounded-sm shrink-0 shadow-sm"
+                style={{ backgroundColor: resilienceLevelColor(level) }}
               />
               <span className="text-slate-600 leading-tight">{t(locale, key)}</span>
             </div>
           ))}
         </div>
-      </div>
+      </MapGlassCard>
     );
   }
 
@@ -59,21 +73,19 @@ export function DroughtLegend() {
   ];
 
   return (
-    <div className="absolute bottom-24 sm:bottom-10 right-2 sm:right-3 z-[1000] bg-white/95 backdrop-blur rounded-lg shadow-lg p-2 sm:p-3 text-[10px] sm:text-xs max-w-[min(220px,calc(100vw-5rem))]">
-      <h3 className="font-semibold text-slate-800 mb-2">
-        {t(locale, "droughtLegend")}
-      </h3>
-      <div className="space-y-1">
+    <MapGlassCard className={cn(posClass, "p-2.5 sm:p-3 text-[10px] sm:text-xs max-w-[min(220px,calc(100vw-5rem))]", chromeHidden && "opacity-90")}>
+      <h3 className="text-panel-title mb-2">{t(locale, "droughtLegend")}</h3>
+      <div className="space-y-1.5">
         {items.map(({ key, color }) => (
           <div key={key} className="flex items-center gap-2">
             <span
-              className="w-4 h-3 rounded-sm shrink-0 border border-black/10"
+              className="w-4 h-3 rounded-sm shrink-0 border border-black/10 shadow-sm"
               style={{ backgroundColor: color }}
             />
             <span className="text-slate-600 leading-tight">{t(locale, key)}</span>
           </div>
         ))}
       </div>
-    </div>
+    </MapGlassCard>
   );
 }

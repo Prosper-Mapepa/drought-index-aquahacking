@@ -2,13 +2,13 @@ import { NextRequest } from "next/server";
 import { buildDroughtScore } from "@/lib/drought-index";
 import { buildInvestmentRisk } from "@/lib/investment-risk";
 import { fetchClimateIndices } from "@/lib/climate-data";
-import { parseWeightsFromSearchParams } from "@/lib/index-weights";
 import type { ClimateScenarioId } from "@/lib/scenarios";
 import {
   parseCustomScenarioFromSearchParams,
   resolveScenario,
 } from "@/lib/scenarios";
 import type { WatershedProperties } from "@/lib/types";
+import { fetchTerritorialWithDemographics } from "@/lib/territorial-lookup";
 import { v1Json, v1Error } from "@/lib/api-v1";
 
 export async function GET(request: NextRequest) {
@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
   try {
     const customScenario = parseCustomScenarioFromSearchParams(params);
     const scenario = resolveScenario(scenarioId, customScenario);
+    const territorial = await fetchTerritorialWithDemographics(lat, lng, watershed);
     const { spi, spei } = await fetchClimateIndices(
       lat,
       lng,
@@ -43,8 +44,10 @@ export async function GET(request: NextRequest) {
       scenario.wmsLayer
     );
 
-    const weights = parseWeightsFromSearchParams(params);
-    const droughtScore = buildDroughtScore({ spi, spei, depth, yieldLpm, weights }, locale);
+    const droughtScore = buildDroughtScore(
+      { spi, spei, depth, yieldLpm, territorial, watershed, scenarioId },
+      locale
+    );
     const report = buildInvestmentRisk({
       droughtScore,
       watershed,

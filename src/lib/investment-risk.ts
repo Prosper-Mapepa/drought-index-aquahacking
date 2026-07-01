@@ -41,9 +41,10 @@ export function buildInvestmentRisk(params: {
   const { droughtScore, watershed, scenarioId, customScenario, locale } = params;
   const scenario = resolveScenario(scenarioId, customScenario);
 
-  const droughtFactor = droughtScore?.composite != null
-    ? Math.max(0, Math.min(1, (droughtScore.composite + 2) / 4))
-    : 0.5;
+  const droughtFactor =
+    droughtScore?.irht != null
+      ? Math.max(0, Math.min(1, (100 - droughtScore.irht) / 100))
+      : 0.5;
 
   const climateFactor = scenarioStressBonus(scenario);
   const watershedFactor = watershedIssueScore(watershed);

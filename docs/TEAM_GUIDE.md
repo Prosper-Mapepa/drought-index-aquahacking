@@ -1,6 +1,6 @@
-# Great Lakes Drought Index — Team Guide
+# LAPARA IRHT Platform — Team Guide
 
-**A plain-language guide for presenting and using the platform with your team.**
+**A plain-language guide for presenting and using the territorial hydric resilience dashboard with your team.**
 
 Live demo: [https://drought-index-aqua.netlify.app](https://drought-index-aqua.netlify.app)  
 (French & English — toggle with **English | Français** in the header or on the welcome note)
@@ -9,17 +9,29 @@ Live demo: [https://drought-index-aqua.netlify.app](https://drought-index-aqua.n
 
 ## 1. What is this?
 
-The **Great Lakes Drought Index** is an interactive map that shows **where water stress and drought risk are highest** in Québec and the Great Lakes region.
+The **LAPARA IRHT Platform** is an interactive map that shows **territorial hydric resilience (IRHT, 0–100)** and drought risk in Québec and the Great Lakes region.
 
 Think of it as a **decision-support dashboard**, not a weather app:
 
 - Bankers and insurers can see **investment risk** by watershed.
-- Land managers can explore **groundwater wells** and drought indicators together.
-- The team can compare **today’s climate** with **2050 / 2100 projections**.
+- Land managers can explore **groundwater wells**, RSESQ stations, land use, and GTC contamination sites.
+- The team can compare **today’s climate** with **2050 / 2100 IRHT projections** (Yamaska pilot: 52.5 → 33.05).
 
-It combines open government and scientific data on one map — similar in spirit to the [Global Wind Atlas](https://globalwindatlas.info/), but for **water and drought**.
+It combines open government and scientific data on one map — similar in spirit to the [Global Wind Atlas](https://globalwindatlas.info/), but for **water resilience**.
 
-> **Status:** Internal preview / working prototype. Results are exploratory until we finalize the methodology together.
+> **Status:** Phase A prototype aligned with the LAPARA IRHT formulation (6 components: C/H/G/T/D/E).
+
+---
+
+## IRHT formula (LAPARA)
+
+```
+IRHT = 100 × (0.25·C + 0.20·H + 0.15·G + 0.15·T + 0.10·D + 0.15·E)
+```
+
+Each component is normalized 0–1 (higher = more resilient). Classification: 80–100 très élevée, 60–79 élevée, 40–59 modérée, 20–39 faible, 0–19 critique.
+
+**API:** `/api/irht`, `/api/v1/irht` — see `/docs`.
 
 ---
 

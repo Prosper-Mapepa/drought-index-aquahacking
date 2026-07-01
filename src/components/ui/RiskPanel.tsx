@@ -5,15 +5,7 @@ import { useApp } from "@/context/AppContext";
 import { t } from "@/lib/i18n";
 import { riskTierColor } from "@/lib/drought-index";
 import { appendCustomScenarioParams } from "@/lib/scenarios";
-
-function RiskScore({ score, label }: { score: number; label: string }) {
-  return (
-    <div className="text-center">
-      <div className="text-2xl font-bold text-slate-900">{(score * 100).toFixed(0)}</div>
-      <div className="text-[10px] text-slate-500">{label}</div>
-    </div>
-  );
-}
+import { MapGlassCard, MapPanelHeader, IconButton, PrimaryButton } from "@/components/ui/primitives";
 
 export function RiskPanel() {
   const {
@@ -24,7 +16,6 @@ export function RiskPanel() {
     riskLocation,
     compareMode,
     customScenario,
-    sidebarOpen,
     setInvestmentRisk,
     setSelectedWatershed,
     setCompareRisk,
@@ -53,69 +44,56 @@ export function RiskPanel() {
     customScenario
   );
 
-  return (
-    <div
-      className={`absolute bottom-0 right-0 z-[1001] animate-fade-in pointer-events-none transition-[left] duration-200 ${
-        sidebarOpen ? "left-0 md:left-[var(--sidebar-width)]" : "left-0"
-      }`}
-    >
-      <div className="mx-2 sm:mx-4 mb-2 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden pointer-events-auto max-h-[40dvh] overflow-y-auto">
-        <div className="flex items-start justify-between px-4 py-3 border-b border-slate-100">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">
-              {t(locale, "investmentRisk")} — {selectedWatershed.ZGIEBV}
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {investmentRisk.scenarioLabel}
-            </p>
-          </div>
-          <button
-            onClick={close}
-            className="text-slate-400 hover:text-slate-600 text-lg leading-none"
-          >
-            ×
-          </button>
-        </div>
+  const irht = investmentRisk.droughtScore?.irht;
 
-        <div className="px-4 py-3 flex flex-wrap items-center gap-4">
+  return (
+    <div className="absolute bottom-2 left-2 right-2 sm:left-3 sm:right-3 z-risk animate-slide-up pointer-events-none">
+      <MapGlassCard className="overflow-hidden pointer-events-auto max-h-[34dvh] overflow-y-auto shadow-panel-lg">
+        <MapPanelHeader
+          title={selectedWatershed.ZGIEBV}
+          subtitle={`${selectedWatershed.OBV ?? selectedWatershed.SIGLE} · ${investmentRisk.scenarioLabel}`}
+          actions={
+            <IconButton onClick={close} label={t(locale, "close")}>
+              <span className="text-lg leading-none">×</span>
+            </IconButton>
+          }
+        />
+
+        <div className="px-3 py-3 flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3">
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base shrink-0 shadow-sm"
               style={{ backgroundColor: riskTierColor(investmentRisk.riskTier) }}
             >
               {(investmentRisk.overallScore * 100).toFixed(0)}
             </div>
             <div>
-              <div className="text-lg font-bold text-slate-900">
+              <div className="text-sm font-bold text-slate-900 leading-tight">
                 {investmentRisk.riskLabel}
               </div>
-              <div className="text-xs text-slate-500">
-                {t(locale, "overallRiskScore")}
+              <div className="text-overline text-slate-500 normal-case tracking-normal font-normal mt-0.5">
+                {t(locale, "investmentRisk")}
+                {irht != null && (
+                  <span className="ml-1 text-data">
+                    · IRHT {irht.toFixed(1)}/100
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
           {compareMode && compareRisk && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100">
-              <RiskScore
-                score={compareRisk.overallScore}
-                label={t(locale, "currentClimate")}
-              />
+            <div className="flex items-center gap-2 text-caption text-slate-600 bg-surface-muted rounded-lg px-2.5 py-1.5 border border-surface-border">
+              <span className="text-data">{(compareRisk.overallScore * 100).toFixed(0)}</span>
               <span className="text-slate-300">→</span>
-              <RiskScore
-                score={investmentRisk.overallScore}
-                label={t(locale, "projectedClimate")}
-              />
-              <div className="text-[10px] text-slate-500 ml-1">
-                {t(locale, "riskChange")}:{" "}
-                <span className="font-semibold text-slate-700">
-                  {((investmentRisk.overallScore - compareRisk.overallScore) * 100).toFixed(0)} pts
-                </span>
-              </div>
+              <span className="font-semibold text-data">
+                {(investmentRisk.overallScore * 100).toFixed(0)}
+              </span>
+              <span className="text-slate-400">{t(locale, "riskChange")}</span>
             </div>
           )}
 
-          <div className="flex gap-3 text-xs ml-auto">
+          <div className="flex gap-3 text-caption ml-auto flex-wrap">
             {(
               [
                 ["drought", investmentRisk.factors.drought],
@@ -124,23 +102,20 @@ export function RiskPanel() {
                 ["groundwater", investmentRisk.factors.groundwater],
               ] as const
             ).map(([key, val]) => (
-              <div key={key} className="text-center">
-                <div className="font-mono font-semibold text-slate-800">
+              <div key={key} className="text-center min-w-[3rem]">
+                <div className="text-data font-semibold text-slate-800">
                   {(val * 100).toFixed(0)}%
                 </div>
-                <div className="text-slate-500">{t(locale, key)}</div>
+                <div className="text-slate-500 leading-tight">{t(locale, key)}</div>
               </div>
             ))}
           </div>
 
-          <Link
-            href={`/report?${reportParams.toString()}`}
-            className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-xs font-medium rounded-lg transition-colors shrink-0"
-          >
-            {t(locale, "viewFullReport")}
+          <Link href={`/report?${reportParams.toString()}`}>
+            <PrimaryButton size="sm">{t(locale, "viewFullReport")}</PrimaryButton>
           </Link>
         </div>
-      </div>
+      </MapGlassCard>
     </div>
   );
 }

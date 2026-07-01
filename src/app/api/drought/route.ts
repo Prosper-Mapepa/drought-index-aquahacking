@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildDroughtScore, computeGroundwaterStress, computeYieldStress } from "@/lib/drought-index";
 import { fetchClimateIndices } from "@/lib/climate-data";
-import { parseWeightsFromSearchParams } from "@/lib/index-weights";
 import type { ClimateScenarioId } from "@/lib/scenarios";
 import {
   parseCustomScenarioFromSearchParams,
   resolveScenario,
 } from "@/lib/scenarios";
+import { fetchTerritorialWithDemographics } from "@/lib/territorial-lookup";
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -24,6 +24,10 @@ export async function GET(request: NextRequest) {
   try {
     const customScenario = parseCustomScenarioFromSearchParams(params);
     const scenario = resolveScenario(scenarioId, customScenario);
+    const includeTerritorial = params.get("territorial") !== "false";
+    const territorial = includeTerritorial
+      ? await fetchTerritorialWithDemographics(lat, lng)
+      : null;
     const { spi, spei } = await fetchClimateIndices(
       lat,
       lng,
@@ -31,8 +35,10 @@ export async function GET(request: NextRequest) {
       scenario.wmsLayer
     );
 
-    const weights = parseWeightsFromSearchParams(params);
-    const score = buildDroughtScore({ spi, spei, depth, yieldLpm, weights }, locale);
+    const score = buildDroughtScore(
+      { spi, spei, depth, yieldLpm, territorial, scenarioId },
+      locale
+    );
 
     return NextResponse.json(
       {
@@ -40,6 +46,7 @@ export async function GET(request: NextRequest) {
         groundwaterStress: computeGroundwaterStress(depth),
         yieldStress: computeYieldStress(yieldLpm),
         scenario: scenarioId,
+        demographics: territorial?.demographics ?? null,
       },
       {
         headers: {

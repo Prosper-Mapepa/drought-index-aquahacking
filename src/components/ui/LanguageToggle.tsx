@@ -2,6 +2,7 @@
 
 import { useApp } from "@/context/AppContext";
 import type { Locale } from "@/lib/types";
+import { cn } from "@/lib/cn";
 
 interface LanguageToggleProps {
   variant?: "header" | "modal";
@@ -14,7 +15,7 @@ export function LanguageToggle({ variant = "header" }: LanguageToggleProps) {
 
   if (variant === "modal") {
     return (
-      <div className="flex items-center gap-1 rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+      <div className="flex items-center gap-0.5 rounded-lg border border-surface-border p-0.5 bg-surface-muted">
         <LangButton active={locale === "en"} onClick={() => set("en")} label="English" />
         <LangButton active={locale === "fr"} onClick={() => set("fr")} label="Français" />
       </div>
@@ -23,23 +24,9 @@ export function LanguageToggle({ variant = "header" }: LanguageToggleProps) {
 
   return (
     <div
-      className="flex items-center gap-1 rounded-md border border-white/20 p-0.5"
+      className="flex items-center gap-0.5 rounded-lg border border-white/15 p-0.5 bg-white/5"
       title="Language / Langue"
     >
-      <svg
-        className="w-3.5 h-3.5 text-white/60 ml-1 shrink-0 hidden sm:block"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        aria-hidden
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M3 5h12M9 3v2m1.048 9.5a18.022 18.022 0 01-3.827 5.475M6 10h13a1 1 0 011 1v8a1 1 0 01-1 1H6a1 1 0 01-1-1v-8a1 1 0 011-1z"
-        />
-      </svg>
       <LangButton
         active={locale === "en"}
         onClick={() => set("en")}
@@ -71,15 +58,16 @@ function LangButton({
     <button
       type="button"
       onClick={onClick}
-      className={`px-2.5 py-0.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+      className={cn(
+        "px-2 py-1 text-[11px] font-medium rounded-md transition-all duration-150 whitespace-nowrap",
         dark
           ? active
-            ? "bg-white text-sidebar"
-            : "text-white/70 hover:text-white"
+            ? "bg-white text-sidebar shadow-sm"
+            : "text-white/65 hover:text-white hover:bg-white/8"
           : active
-            ? "bg-accent text-white"
-            : "text-slate-500 hover:text-slate-800"
-      }`}
+            ? "bg-accent text-white shadow-sm"
+            : "text-slate-500 hover:text-slate-800 hover:bg-white"
+      )}
       aria-pressed={active}
       aria-label={label}
     >

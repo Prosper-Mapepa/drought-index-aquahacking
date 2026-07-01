@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Great Lakes Drought Index | Indice de sécheresse Grands Lacs",
+  title: "LAPARA IRHT Platform | Great Lakes Drought Index",
   description:
-    "Operational drought index platform for Québec and the Great Lakes region. Plateforme opérationnelle d'indice de sécheresse pour le Québec et les Grands Lacs.",
+    "Territorial Hydric Resilience Index platform for Québec and the Great Lakes region. Plateforme IRHT pour le Québec et les Grands Lacs.",
 };
 
 export default function RootLayout({
@@ -14,8 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr">
-      <body className="antialiased">
+    <html lang="fr" className={inter.variable}>
+      <body className="font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

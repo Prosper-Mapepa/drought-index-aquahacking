@@ -1,11 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   MapContainer,
-  TileLayer,
-  WMSTileLayer,
   useMap,
   useMapEvents,
   ScaleControl,
@@ -24,10 +21,14 @@ import {
   WATERSHED_LAYER_URL,
   GREAT_LAKES_BASIN_URL,
   NOAA_SPI_HUC6_URL,
+  RSESQ_LAYER_URL,
+  LAND_USE_LAYER_URL,
+  GTC_LAYER_URL,
   spiValueToColor,
   droughtLabel,
 } from "@/lib/constants";
 import { GEOMET_CLIMATE_WMS, resolveScenario } from "@/lib/scenarios";
+import { buildRsesqDemoSeries, parseRsesqStationId } from "@/lib/territorial-data";
 import {
   queryAllSihWellsInBbox,
   wellsToCsv,
@@ -42,38 +43,53 @@ import {
 } from "@/lib/popups";
 import type { WellFeature, WatershedProperties } from "@/lib/types";
 import { t } from "@/lib/i18n";
+import {
+  safeCloseLayerPopup,
+  safeMapCleanup,
+  safeRemoveLayer,
+  safeSetPopupContent,
+} from "@/lib/map-safe";
 
-function safeRemoveLayer(map: L.Map, layer?: L.Layer | null) {
-  if (layer && map.hasLayer(layer)) {
-    map.removeLayer(layer);
-  }
+function MapCleanupGuard() {
+  const map = useMap();
+  useEffect(() => {
+    return () => safeMapCleanup(map);
+  }, [map]);
+  return null;
 }
 
-function MapPortal({ children }: { children: React.ReactNode }) {
+function MapInstanceRegistrar({ onMap }: { onMap: (map: L.Map | null) => void }) {
   const map = useMap();
-  const [root, setRoot] = useState<HTMLElement | null>(null);
-
   useEffect(() => {
-    setRoot(map.getContainer().parentElement);
-  }, [map]);
-
-  if (!root) return null;
-  return createPortal(children, root);
+    onMap(map);
+    return () => onMap(null);
+  }, [map, onMap]);
+  return null;
 }
 
 function MapFlyTo() {
   const map = useMap();
-  const { flyToTarget, setMapTransitioning } = useApp();
+  const { flyToTarget, setMapTransitioning, setScenario } = useApp();
   const lastIdRef = useRef(0);
 
   useEffect(() => {
     if (!flyToTarget?.id || flyToTarget.id === lastIdRef.current) return;
     lastIdRef.current = flyToTarget.id;
+    const scenarioAfter = flyToTarget.scenarioAfter;
 
+    setMapTransitioning(true);
     map.stop();
-    map.once("moveend", () => setMapTransitioning(false));
+    const finish = () => setMapTransitioning(false);
+    const safety = window.setTimeout(finish, 2500);
+    map.once("moveend", () => {
+      window.clearTimeout(safety);
+      finish();
+      if (scenarioAfter) {
+        window.setTimeout(() => setScenario(scenarioAfter), 100);
+      }
+    });
     map.flyTo(flyToTarget.center, flyToTarget.zoom, { duration: 1.0 });
-  }, [flyToTarget, map, setMapTransitioning]);
+  }, [flyToTarget, map, setMapTransitioning, setScenario]);
 
   return null;
 }
@@ -115,25 +131,68 @@ function CoordinateTracker() {
 }
 
 function ClimateProjectionLayer() {
-  const { scenario, customScenario, layers } = useApp();
+  const map = useMap();
+  const { scenario, customScenario, layers, mapTransitioning } = useApp();
+  const layerRef = useRef<L.TileLayer.WMS | null>(null);
+  const activeLayerRef = useRef<string | null>(null);
   const scenarioDef = resolveScenario(scenario, customScenario);
   const spiVisible = layers.find((l) => l.id === "spi")?.visible ?? false;
+  const wmsLayerId = scenarioDef.wmsLayer;
+  const active =
+    !mapTransitioning &&
+    !scenarioDef.useAafcSpi &&
+    Boolean(wmsLayerId) &&
+    spiVisible;
 
-  if (scenarioDef.useAafcSpi || !scenarioDef.wmsLayer || !spiVisible) return null;
+  useEffect(() => {
+    let cancelled = false;
 
-  return (
-    <WMSTileLayer
-      key={scenarioDef.wmsLayer}
-      url={GEOMET_CLIMATE_WMS}
-      layers={scenarioDef.wmsLayer}
-      format="image/png"
-      transparent
-      version="1.3.0"
-      styles="SPEI"
-      opacity={0.65}
-      attribution="ECCC GeoMet-Climate"
-    />
-  );
+    async function sync() {
+      if (!active || !wmsLayerId) {
+        safeRemoveLayer(map, layerRef.current);
+        layerRef.current = null;
+        activeLayerRef.current = null;
+        return;
+      }
+
+      if (
+        layerRef.current &&
+        map.hasLayer(layerRef.current) &&
+        activeLayerRef.current === wmsLayerId
+      ) {
+        return;
+      }
+
+      safeMapCleanup(map);
+      safeRemoveLayer(map, layerRef.current);
+      layerRef.current = null;
+
+      const wms = L.tileLayer.wms(GEOMET_CLIMATE_WMS, {
+        layers: wmsLayerId,
+        format: "image/png",
+        transparent: true,
+        version: "1.3.0",
+        styles: "SPEI",
+        opacity: 0.65,
+        attribution: "ECCC GeoMet-Climate",
+      });
+
+      if (cancelled) return;
+      wms.addTo(map);
+      layerRef.current = wms;
+      activeLayerRef.current = wmsLayerId;
+    }
+
+    sync();
+    return () => {
+      cancelled = true;
+      safeRemoveLayer(map, layerRef.current);
+      layerRef.current = null;
+      activeLayerRef.current = null;
+    };
+  }, [map, active, wmsLayerId]);
+
+  return null;
 }
 
 const esriLoad = import("esri-leaflet");
@@ -146,12 +205,15 @@ function AafcSpiLayer({
   opacity: number;
 }) {
   const map = useMap();
+  const { mapTransitioning } = useApp();
   const layerRef = useRef<L.Layer | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function sync() {
+      if (mapTransitioning) return;
+
       if (!visible) {
         safeRemoveLayer(map, layerRef.current);
         layerRef.current = null;
@@ -173,7 +235,9 @@ function AafcSpiLayer({
         url: SPI_IMAGE_SERVER,
         opacity,
         attribution: "Agriculture and Agri-Food Canada",
-      });
+        // esri-leaflet supports this at runtime; prevents blocking map pan/zoom
+        interactive: false,
+      } as Parameters<typeof esri.imageMapLayer>[0]);
       layer.addTo(map);
       layerRef.current = layer;
     }
@@ -184,7 +248,7 @@ function AafcSpiLayer({
       safeRemoveLayer(map, layerRef.current);
       layerRef.current = null;
     };
-  }, [map, visible, opacity]);
+  }, [map, visible, opacity, mapTransitioning]);
 
   return null;
 }
@@ -224,7 +288,8 @@ function AafcSpeiLayer({
         url: SPEI_IMAGE_SERVER,
         opacity,
         attribution: "Agriculture and Agri-Food Canada",
-      });
+        interactive: false,
+      } as Parameters<typeof esri.imageMapLayer>[0]);
       layer.addTo(map);
       layerRef.current = layer;
     }
@@ -276,6 +341,7 @@ function WatershedEsriLayer({
 
     async function sync() {
       if (!visible) {
+        safeMapCleanup(map);
         safeRemoveLayer(map, layerRef.current);
         layerRef.current = null;
         return;
@@ -284,6 +350,22 @@ function WatershedEsriLayer({
       const esri = await esriLoad;
       if (cancelled) return;
 
+      if (layerRef.current && map.hasLayer(layerRef.current)) {
+        const fl = layerRef.current as L.Layer & {
+          setOpacity?: (o: number) => void;
+          setStyle?: (s: L.PathOptions) => void;
+        };
+        fl.setOpacity?.(opacity);
+        fl.setStyle?.({
+          color: "#38bdf8",
+          weight: 1.5,
+          fillColor: "#0ea5e9",
+          fillOpacity: opacity * 0.15,
+        });
+        return;
+      }
+
+      safeMapCleanup(map);
       safeRemoveLayer(map, layerRef.current);
       const watershed = esri.featureLayer({
         url: WATERSHED_LAYER_URL,
@@ -297,11 +379,11 @@ function WatershedEsriLayer({
         onEachFeature: (feature, layer) => {
           const props = (feature.properties ?? {}) as WatershedProperties;
           const popupOpts = {
-            maxWidth: 420,
-            minWidth: 360,
+            maxWidth: 360,
+            minWidth: 280,
             className: "watershed-popup",
-            autoPanPaddingTopLeft: L.point(20, 20),
-            autoPanPaddingBottomRight: L.point(24, 24),
+            autoPanPaddingTopLeft: L.point(16, 80),
+            autoPanPaddingBottomRight: L.point(16, 200),
           };
 
           layer.bindPopup(formatLoadingPopup(localeRef.current), popupOpts);
@@ -311,35 +393,37 @@ function WatershedEsriLayer({
             const loc = localeRef.current;
             const scen = scenarioRef.current;
             const custom = customScenarioRef.current;
-            const weights = indexWeightsRef.current;
             setSelectedWatershed(props);
             setRiskLocation([lat, lng]);
             layer.openPopup(e.latlng);
 
-            const risk = await fetchInvestmentRisk(
-              lat,
-              lng,
-              scen,
-              loc,
-              props,
-              weights,
-              custom
-            );
-            setInvestmentRisk(risk);
-            layer.setPopupContent(formatWatershedPopup(props, loc, risk));
-
-            if (compareModeRef.current && scen !== "current") {
-              const current = await fetchInvestmentRisk(
+            try {
+              const risk = await fetchInvestmentRisk(
                 lat,
                 lng,
-                "current",
+                scen,
                 loc,
                 props,
-                weights
+                custom
               );
-              setCompareRisk(current);
-            } else {
-              setCompareRisk(null);
+              if (cancelled || !map.hasLayer(layer)) return;
+              setInvestmentRisk(risk);
+              safeCloseLayerPopup(layer, map);
+
+              if (compareModeRef.current && scen !== "current") {
+                const current = await fetchInvestmentRisk(
+                  lat,
+                  lng,
+                  "current",
+                  loc,
+                  props
+                );
+                if (!cancelled) setCompareRisk(current);
+              } else {
+                setCompareRisk(null);
+              }
+            } catch {
+              safeCloseLayerPopup(layer, map);
             }
           });
         },
@@ -376,6 +460,9 @@ function GreatLakesBasinLayer({
 }) {
   const map = useMap();
   const layerRef = useRef<L.Layer | null>(null);
+  const { locale } = useApp();
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
 
   useEffect(() => {
     let cancelled = false;
@@ -400,6 +487,20 @@ function GreatLakesBasinLayer({
           fillOpacity: opacity * 0.06,
         }),
         opacity,
+        onEachFeature: (_feature, layer) => {
+          const loc = localeRef.current;
+          const title = loc === "fr" ? "Bassin des Grands Lacs" : "Great Lakes Basin";
+          const hint =
+            loc === "fr"
+              ? "Cliquez sur un polygone SPI (HUC6) pour les détails de sécheresse."
+              : "Click an SPI polygon (HUC6) for drought details.";
+          layer.bindPopup(
+            `<div style="font-family:system-ui,sans-serif;font-size:12px;min-width:200px">
+              <strong>${title}</strong>
+              <p style="color:#64748b;margin:6px 0 0;line-height:1.4">${hint}</p>
+            </div>`
+          );
+        },
       });
       basin.addTo(map);
       layerRef.current = basin;
@@ -457,21 +558,22 @@ function UsSpiLayer({
         },
         opacity,
         onEachFeature: (feature, layer) => {
-          layer.on("click", () => {
-            const p = feature.properties ?? {};
-            const val = p.VALUE as number | undefined;
-            const basin = p.BASIN ?? p.NAME ?? "—";
-            const loc = localeRef.current;
-            const label = val != null ? droughtLabel(val, loc) : "—";
-            layer.setPopupContent(
-              `<div style="font-family:system-ui,sans-serif;min-width:180px">
+          const p = feature.properties ?? {};
+          const val = p.VALUE as number | undefined;
+          const basin = p.BASIN ?? p.NAME ?? p.HUC6 ?? "—";
+          const loc = localeRef.current;
+          const label = val != null ? droughtLabel(val, loc) : "—";
+          const popupHtml = `<div style="font-family:system-ui,sans-serif;min-width:180px">
                 <strong style="font-size:13px">${basin}</strong>
                 <div style="margin-top:6px;font-size:12px;color:#64748b">
                   SPI: <strong style="color:#1e293b">${val?.toFixed(2) ?? "—"}</strong>
                 </div>
                 <div style="font-size:11px;color:#94a3b8;margin-top:2px">${label}</div>
-              </div>`
-            );
+              </div>`;
+
+          layer.bindPopup(popupHtml);
+          layer.on("click", (e: L.LeafletMouseEvent) => {
+            layer.openPopup(e.latlng);
           });
         },
       });
@@ -490,26 +592,232 @@ function UsSpiLayer({
   return null;
 }
 
+function RsesqStationsLayer({
+  visible,
+  opacity,
+}: {
+  visible: boolean;
+  opacity: number;
+}) {
+  const map = useMap();
+  const layerRef = useRef<L.Layer | null>(null);
+  const { setRsesqStation } = useApp();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function sync() {
+      if (!visible) {
+        safeRemoveLayer(map, layerRef.current);
+        layerRef.current = null;
+        return;
+      }
+
+      const esri = await esriLoad;
+      if (cancelled) return;
+
+      safeRemoveLayer(map, layerRef.current);
+      const stations = esri.featureLayer({
+        url: RSESQ_LAYER_URL,
+        pointToLayer: (_geojson, latlng) =>
+          L.circleMarker(latlng, {
+            radius: 6,
+            fillColor: "#14b8a6",
+            color: "#ffffff",
+            weight: 1.5,
+            fillOpacity: opacity,
+          }),
+        onEachFeature: (feature, layer) => {
+          const attrs = feature.properties ?? {};
+          const name = String(attrs.Name ?? "RSESQ");
+          const popupInfo = String(attrs.PopupInfo ?? "");
+          const stationId = parseRsesqStationId(popupInfo);
+
+          layer.bindPopup(
+            `<div style="font-family:system-ui,sans-serif;min-width:180px">
+              <strong>${name}</strong>
+              <div style="font-size:11px;color:#64748b;margin-top:4px">RSESQ · ${stationId ?? "—"}</div>
+            </div>`
+          );
+
+          layer.on("click", () => {
+            if (!stationId) return;
+            const series = buildRsesqDemoSeries(stationId);
+            setRsesqStation({ name, stationId, series });
+          });
+        },
+      });
+      stations.addTo(map);
+      layerRef.current = stations;
+    }
+
+    sync();
+    return () => {
+      cancelled = true;
+      safeRemoveLayer(map, layerRef.current);
+      layerRef.current = null;
+    };
+  }, [map, visible, opacity, setRsesqStation]);
+
+  return null;
+}
+
+function LandUseLayer({
+  visible,
+  opacity,
+}: {
+  visible: boolean;
+  opacity: number;
+}) {
+  const map = useMap();
+  const layerRef = useRef<L.Layer | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function sync() {
+      if (!visible) {
+        safeRemoveLayer(map, layerRef.current);
+        layerRef.current = null;
+        return;
+      }
+
+      const esri = await esriLoad;
+      if (cancelled) return;
+
+      safeRemoveLayer(map, layerRef.current);
+      const landUse = esri.featureLayer({
+        url: LAND_USE_LAYER_URL,
+        style: () => ({
+          color: "#a855f7",
+          weight: 0.5,
+          fillColor: "#c084fc",
+          fillOpacity: opacity * 0.35,
+        }),
+        opacity,
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties ?? {};
+          layer.bindPopup(
+            `<div style="font-family:system-ui,sans-serif;font-size:12px">
+              <strong>${p.classe_detaillee ?? p.DESC_CAT ?? "Land use"}</strong>
+              <div style="color:#64748b;margin-top:4px">${p.DESC_RCL_A ?? ""}</div>
+            </div>`
+          );
+        },
+      });
+      landUse.addTo(map);
+      layerRef.current = landUse;
+    }
+
+    sync();
+    return () => {
+      cancelled = true;
+      safeRemoveLayer(map, layerRef.current);
+      layerRef.current = null;
+    };
+  }, [map, visible, opacity]);
+
+  return null;
+}
+
+function GtcSitesLayer({
+  visible,
+  opacity,
+}: {
+  visible: boolean;
+  opacity: number;
+}) {
+  const map = useMap();
+  const layerRef = useRef<L.Layer | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function sync() {
+      if (!visible) {
+        safeRemoveLayer(map, layerRef.current);
+        layerRef.current = null;
+        return;
+      }
+
+      const esri = await esriLoad;
+      if (cancelled) return;
+
+      safeRemoveLayer(map, layerRef.current);
+      const gtc = esri.featureLayer({
+        url: GTC_LAYER_URL,
+        pointToLayer: (_geojson, latlng) =>
+          L.circleMarker(latlng, {
+            radius: 5,
+            fillColor: "#ef4444",
+            color: "#fff",
+            weight: 1,
+            fillOpacity: opacity,
+          }),
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties ?? {};
+          layer.bindPopup(
+            `<div style="font-family:system-ui,sans-serif;font-size:12px">
+              <strong>GTC ${p.NO_MEF_LIEU ?? ""}</strong>
+              <div style="color:#64748b;margin-top:4px">${p.DESC_MILIEU_RECEPT ?? ""}</div>
+              <div style="font-size:11px;margin-top:2px">${p.NB_FICHES ?? 0} fiche(s)</div>
+            </div>`
+          );
+        },
+      });
+      gtc.addTo(map);
+      layerRef.current = gtc;
+    }
+
+    sync();
+    return () => {
+      cancelled = true;
+      safeRemoveLayer(map, layerRef.current);
+      layerRef.current = null;
+    };
+  }, [map, visible, opacity]);
+
+  return null;
+}
+
 function EsriLayers() {
-  const { layers, scenario, customScenario } = useApp();
+  const { layers, scenario, customScenario, region } = useApp();
   const spiLayer = layers.find((l) => l.id === "spi");
   const speiLayer = layers.find((l) => l.id === "spei");
   const watershedLayer = layers.find((l) => l.id === "watersheds");
   const basinLayer = layers.find((l) => l.id === "great-lakes-basin");
   const usSpiLayer = layers.find((l) => l.id === "us-spi");
+  const rsesqLayer = layers.find((l) => l.id === "rsesq-stations");
+  const landUseLayer = layers.find((l) => l.id === "land-use");
+  const gtcLayer = layers.find((l) => l.id === "gtc-sites");
   const scenarioDef = resolveScenario(scenario, customScenario);
-  const showAafcSpi = scenarioDef.useAafcSpi && (spiLayer?.visible ?? false);
+  const showAafcSpi =
+    region === "quebec" &&
+    scenarioDef.useAafcSpi &&
+    (spiLayer?.visible ?? false);
 
   return (
     <>
       <AafcSpiLayer visible={showAafcSpi} opacity={spiLayer?.opacity ?? 0.65} />
       <AafcSpeiLayer
-        visible={speiLayer?.visible ?? false}
+        visible={region === "quebec" && (speiLayer?.visible ?? false)}
         opacity={speiLayer?.opacity ?? 0.65}
       />
+      <LandUseLayer
+        visible={region === "quebec" && (landUseLayer?.visible ?? false)}
+        opacity={landUseLayer?.opacity ?? 0.45}
+      />
       <WatershedEsriLayer
-        visible={watershedLayer?.visible ?? false}
+        visible={region === "quebec" && (watershedLayer?.visible ?? false)}
         opacity={watershedLayer?.opacity ?? 0.5}
+      />
+      <RsesqStationsLayer
+        visible={region === "quebec" && (rsesqLayer?.visible ?? false)}
+        opacity={rsesqLayer?.opacity ?? 1}
+      />
+      <GtcSitesLayer
+        visible={region === "quebec" && (gtcLayer?.visible ?? false)}
+        opacity={gtcLayer?.opacity ?? 1}
       />
       <GreatLakesBasinLayer
         visible={basinLayer?.visible ?? false}
@@ -522,23 +830,35 @@ function EsriLayers() {
 
 function SihWellsLayer() {
   const map = useMap();
-  const { isLayerVisible, setWellCount, locale, setLegendMode, setSelectedWellScore, scenario, customScenario, indexWeights, mapTransitioning } =
-    useApp();
+  const {
+    isLayerVisible,
+    setWellCount,
+    locale,
+    setLegendMode,
+    setSelectedWellScore,
+    scenario,
+    customScenario,
+    mapTransitioning,
+    region,
+  } = useApp();
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
   const featuresRef = useRef<WellFeature[]>([]);
   const loadingRef = useRef(false);
   const localeRef = useRef(locale);
   const scenarioRef = useRef(scenario);
   const customScenarioRef = useRef(customScenario);
-  const indexWeightsRef = useRef(indexWeights);
   localeRef.current = locale;
   scenarioRef.current = scenario;
   customScenarioRef.current = customScenario;
-  indexWeightsRef.current = indexWeights;
 
   const loadWells = useCallback(
     async (bounds: L.LatLngBounds, zoom: number) => {
-      if (!isLayerVisible("sih-wells") || zoom < SIH_MIN_ZOOM) {
+      if (
+        region !== "quebec" ||
+        !isLayerVisible("sih-wells") ||
+        zoom < SIH_MIN_ZOOM ||
+        mapTransitioning
+      ) {
         safeRemoveLayer(map, layerGroupRef.current);
         layerGroupRef.current = null;
         setWellCount(0);
@@ -557,6 +877,7 @@ function SihWellsLayer() {
         featuresRef.current = features;
         setWellCount(features.length);
 
+        safeMapCleanup(map);
         safeRemoveLayer(map, layerGroupRef.current);
 
         const group = L.layerGroup();
@@ -575,7 +896,6 @@ function SihWellsLayer() {
             const loc = localeRef.current;
             const scen = scenarioRef.current;
             const custom = customScenarioRef.current;
-            const weights = indexWeightsRef.current;
             setLegendMode("composite");
             marker
               .bindPopup(formatLoadingPopup(loc), {
@@ -591,12 +911,12 @@ function SihWellsLayer() {
               props.DEBT_ESSAI_POMP,
               loc,
               scen,
-              weights,
               custom
             );
 
+            if (!map.hasLayer(marker)) return;
             setSelectedWellScore(score);
-            marker.setPopupContent(formatWellPopup(props, score, loc));
+            safeSetPopupContent(marker, formatWellPopup(props, score, loc));
           });
 
           marker.on("popupclose", () => {
@@ -614,7 +934,7 @@ function SihWellsLayer() {
         loadingRef.current = false;
       }
     },
-    [map, isLayerVisible, setWellCount, setLegendMode, setSelectedWellScore]
+    [map, isLayerVisible, setWellCount, setLegendMode, setSelectedWellScore, region, mapTransitioning]
   );
 
   useMapEvents({
@@ -623,17 +943,20 @@ function SihWellsLayer() {
       loadWells(map.getBounds(), map.getZoom());
     },
     zoomend() {
+      if (mapTransitioning) return;
       loadWells(map.getBounds(), map.getZoom());
     },
   });
 
   useEffect(() => {
+    if (mapTransitioning) return;
     loadWells(map.getBounds(), map.getZoom());
     return () => {
+      safeMapCleanup(map);
       safeRemoveLayer(map, layerGroupRef.current);
       layerGroupRef.current = null;
     };
-  }, [map, loadWells, isLayerVisible]);
+  }, [map, loadWells, isLayerVisible, region, mapTransitioning]);
 
   useEffect(() => {
     (window as unknown as { __sihFeatures: WellFeature[] }).__sihFeatures =
@@ -692,34 +1015,37 @@ function MapSearch() {
   return null;
 }
 
-function MapControls() {
-  const map = useMap();
+function MapOverlayControls({ map }: { map: L.Map | null }) {
+  if (!map) return null;
 
   return (
-    <MapPortal>
-      <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5 pointer-events-auto">
+    <div className="absolute top-3 right-3 z-controls flex flex-col gap-1 pointer-events-auto rounded-xl bg-white/95 backdrop-blur-md p-1 shadow-panel border border-surface-border">
       <button
+        type="button"
         onClick={() => map.zoomIn()}
-        className="w-8 h-8 bg-white rounded shadow-md flex items-center justify-center 
-                   hover:bg-slate-50 text-slate-700 text-lg font-light"
+        className="w-8 h-8 rounded-lg flex items-center justify-center
+                   hover:bg-surface-muted text-slate-700 text-lg font-light transition-colors"
         title="Zoom in"
       >
         +
       </button>
       <button
+        type="button"
         onClick={() => map.zoomOut()}
-        className="w-8 h-8 bg-white rounded shadow-md flex items-center justify-center 
-                   hover:bg-slate-50 text-slate-700 text-lg font-light"
+        className="w-8 h-8 rounded-lg flex items-center justify-center
+                   hover:bg-surface-muted text-slate-700 text-lg font-light transition-colors"
         title="Zoom out"
       >
         −
       </button>
+      <div className="h-px bg-surface-border mx-1" />
       <button
+        type="button"
         onClick={() => {
           map.locate({ setView: true, maxZoom: 14 });
         }}
-        className="w-8 h-8 bg-white rounded shadow-md flex items-center justify-center 
-                   hover:bg-slate-50 text-slate-600"
+        className="w-8 h-8 rounded-lg flex items-center justify-center
+                   hover:bg-surface-muted text-slate-600 transition-colors"
         title="My location"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -729,13 +1055,13 @@ function MapControls() {
             d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       </button>
-      </div>
-    </MapPortal>
+    </div>
   );
 }
 
-function ExportControls() {
-  const { locale } = useApp();
+function ExportControlsOverlay() {
+  const { locale, region } = useApp();
+  if (region !== "quebec") return null;
 
   const handleExport = (format: "csv" | "geojson") => {
     const features =
@@ -755,70 +1081,98 @@ function ExportControls() {
   };
 
   return (
-    <MapPortal>
-      <div className="absolute bottom-24 sm:bottom-14 left-2 sm:left-14 z-[1000] flex flex-col sm:flex-row gap-1 sm:gap-1.5 pointer-events-auto">
+    <div className="absolute bottom-24 sm:bottom-14 left-2 sm:left-4 z-controls flex flex-col sm:flex-row gap-1.5 pointer-events-auto">
       <button
+        type="button"
         onClick={() => handleExport("csv")}
-        className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white/95 backdrop-blur rounded-md shadow-md text-[10px] sm:text-[11px] 
-                   text-slate-600 hover:bg-white whitespace-nowrap font-medium"
+        className="px-2.5 py-1.5 glass-panel text-caption text-slate-600 hover:text-slate-900 whitespace-nowrap font-medium transition-colors"
       >
         {t(locale, "exportCsv")}
       </button>
       <button
+        type="button"
         onClick={() => handleExport("geojson")}
-        className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white/95 backdrop-blur rounded-md shadow-md text-[10px] sm:text-[11px] 
-                   text-slate-600 hover:bg-white whitespace-nowrap font-medium"
+        className="px-2.5 py-1.5 glass-panel text-caption text-slate-600 hover:text-slate-900 whitespace-nowrap font-medium transition-colors"
       >
         {t(locale, "exportGeoJson")}
       </button>
-      </div>
-    </MapPortal>
+    </div>
   );
 }
 
 function BaseLayers() {
+  const map = useMap();
   const { isLayerVisible } = useApp();
   const showSatellite = isLayerVisible("satellite");
   const showTerrain = isLayerVisible("terrain");
+  const baseRef = useRef<L.TileLayer | null>(null);
+  const labelsRef = useRef<L.TileLayer | null>(null);
 
-  return (
-    <>
-      {showSatellite && (
-        <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          attribution="Esri, Maxar, Earthstar Geographics"
-          maxZoom={MAX_ZOOM}
-        />
-      )}
-      {showTerrain && !showSatellite && (
-        <TileLayer
-          url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-          attribution="OpenTopoMap"
-          maxZoom={17}
-        />
-      )}
-      {!showSatellite && !showTerrain && (
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          attribution="OpenStreetMap, CARTO"
-          maxZoom={MAX_ZOOM}
-        />
-      )}
-      {(showSatellite || showTerrain) && (
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
-          attribution=""
-          maxZoom={MAX_ZOOM}
-          pane="overlayPane"
-        />
-      )}
-    </>
-  );
+  useEffect(() => {
+    let cancelled = false;
+
+    safeMapCleanup(map);
+    safeRemoveLayer(map, baseRef.current);
+    safeRemoveLayer(map, labelsRef.current);
+    baseRef.current = null;
+    labelsRef.current = null;
+
+    let base: L.TileLayer;
+    if (showSatellite) {
+      base = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        {
+          attribution: "Esri, Maxar, Earthstar Geographics",
+          maxZoom: MAX_ZOOM,
+        }
+      );
+    } else if (showTerrain) {
+      base = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+        attribution: "OpenTopoMap",
+        maxZoom: 17,
+      });
+    } else {
+      base = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        {
+          attribution: "OpenStreetMap, CARTO",
+          maxZoom: MAX_ZOOM,
+        }
+      );
+    }
+
+    if (cancelled) return;
+    base.addTo(map);
+    baseRef.current = base;
+
+    if (showSatellite || showTerrain) {
+      const labels = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
+        { attribution: "", maxZoom: MAX_ZOOM, pane: "overlayPane" }
+      );
+      labels.addTo(map);
+      labelsRef.current = labels;
+    }
+
+    return () => {
+      cancelled = true;
+      safeRemoveLayer(map, baseRef.current);
+      safeRemoveLayer(map, labelsRef.current);
+      baseRef.current = null;
+      labelsRef.current = null;
+    };
+  }, [map, showSatellite, showTerrain]);
+
+  return null;
 }
 
 export function DroughtMap() {
   const { setMapView } = useApp();
   const [, setMapBounds] = useState<L.LatLngBounds | null>(null);
+  const [leafletMap, setLeafletMap] = useState<L.Map | null>(null);
+  const handleMapInstance = useCallback((map: L.Map | null) => {
+    setLeafletMap(map);
+  }, []);
 
   const handleMove = useCallback(
     (center: [number, number], zoom: number, bounds: L.LatLngBounds) => {
@@ -829,28 +1183,31 @@ export function DroughtMap() {
   );
 
   return (
-    <MapContainer
-      key="drought-map"
-      center={DEFAULT_CENTER}
-      zoom={DEFAULT_ZOOM}
-      minZoom={MIN_ZOOM}
-      maxZoom={MAX_ZOOM}
-      className="w-full h-full"
-      zoomControl={false}
-      preferCanvas
-    >
-      <BaseLayers />
-      <EsriLayers />
-      <ClimateProjectionLayer />
-      <SihWellsLayer />
-      <SihZoomGuard />
-      <MapFlyTo />
-      <MapSearch />
-      <MapControls />
-      <ExportControls />
-      <CoordinateTracker />
-      <MapEventHandler onMove={handleMove} />
-      <ScaleControl position="bottomleft" imperial metric />
-    </MapContainer>
+    <div className="relative w-full h-full">
+      <MapContainer
+        key="drought-map"
+        center={DEFAULT_CENTER}
+        zoom={DEFAULT_ZOOM}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
+        className="w-full h-full"
+        zoomControl={false}
+      >
+        <MapInstanceRegistrar onMap={handleMapInstance} />
+        <MapCleanupGuard />
+        <BaseLayers />
+        <EsriLayers />
+        <ClimateProjectionLayer />
+        <SihWellsLayer />
+        <SihZoomGuard />
+        <MapFlyTo />
+        <MapSearch />
+        <CoordinateTracker />
+        <MapEventHandler onMove={handleMove} />
+        <ScaleControl position="bottomleft" imperial metric />
+      </MapContainer>
+      <MapOverlayControls map={leafletMap} />
+      <ExportControlsOverlay />
+    </div>
   );
 }

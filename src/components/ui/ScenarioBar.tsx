@@ -2,6 +2,8 @@
 
 import { useApp } from "@/context/AppContext";
 import { t } from "@/lib/i18n";
+import { cn } from "@/lib/cn";
+import { useMapBottomInset } from "@/lib/map-chrome";
 import {
   CLIMATE_SCENARIOS,
   resolveScenario,
@@ -22,11 +24,11 @@ function CustomScenarioBuilder({
   const { locale } = useApp();
 
   const selectClass =
-    "bg-white text-slate-700 text-[11px] rounded-md border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent";
+    "bg-white text-slate-700 text-caption rounded-md border border-surface-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/30";
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 bg-white/95 backdrop-blur rounded-lg shadow px-3 py-2 pointer-events-auto border border-slate-200 max-w-[95vw]">
-      <label className="flex items-center gap-1.5 text-[11px] text-slate-600">
+    <div className="flex flex-wrap items-center justify-center gap-2 glass-panel px-3 py-2.5 pointer-events-auto max-w-[95vw] animate-fade-in">
+      <label className="flex items-center gap-1.5 text-caption text-slate-600">
         <span className="whitespace-nowrap">{t(locale, "speiTimescale")}</span>
         <select
           className={selectClass}
@@ -44,7 +46,7 @@ function CustomScenarioBuilder({
         </select>
       </label>
 
-      <label className="flex items-center gap-1.5 text-[11px] text-slate-600">
+      <label className="flex items-center gap-1.5 text-caption text-slate-600">
         <span className="whitespace-nowrap">{t(locale, "rcpPathway")}</span>
         <select
           className={selectClass}
@@ -59,7 +61,7 @@ function CustomScenarioBuilder({
         </select>
       </label>
 
-      <label className="flex items-center gap-1.5 text-[11px] text-slate-600">
+      <label className="flex items-center gap-1.5 text-caption text-slate-600">
         <span className="whitespace-nowrap">{t(locale, "ensemblePercentile")}</span>
         <select
           className={selectClass}
@@ -77,7 +79,7 @@ function CustomScenarioBuilder({
         </select>
       </label>
 
-      <label className="flex items-center gap-1.5 text-[11px] text-slate-600">
+      <label className="flex items-center gap-1.5 text-caption text-slate-600">
         <span className="whitespace-nowrap">{t(locale, "projectionYear")}</span>
         <select
           className={selectClass}
@@ -108,26 +110,30 @@ export function ScenarioBar() {
     setCustomScenario,
     compareMode,
     setCompareMode,
-    investmentRisk,
   } = useApp();
+  const bottomInset = useMapBottomInset();
 
   return (
     <div
-      className={`absolute left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center gap-2 pointer-events-none transition-all px-2 w-full max-w-[100vw] ${
-        investmentRisk ? "bottom-36 sm:bottom-36" : "bottom-20 sm:bottom-10"
-      }`}
+      className={cn(
+        "absolute left-1/2 -translate-x-1/2 z-overlay flex flex-col items-center gap-2 pointer-events-none",
+        "transition-all duration-300 px-2 w-full max-w-[100vw]",
+        bottomInset
+      )}
     >
-      <div className="flex items-center gap-1 bg-sidebar/95 backdrop-blur rounded-lg shadow-lg p-1 pointer-events-auto border border-sidebar-border max-w-full overflow-x-auto">
+      <div className="relative flex items-center gap-0.5 glass-panel-dark p-1 pointer-events-auto max-w-full overflow-x-auto shadow-glow">
+        <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" aria-hidden />
         {CLIMATE_SCENARIOS.map((s) => (
           <button
             key={s.id}
             onClick={() => setScenario(s.id)}
             title={s.description[locale]}
-            className={`px-2 sm:px-2.5 py-1.5 text-[10px] sm:text-[11px] font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+            className={cn(
+              "px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-[11px] font-medium rounded-md transition-all duration-150 whitespace-nowrap shrink-0",
               scenario === s.id
-                ? "bg-accent text-white"
-                : "text-white/70 hover:text-white hover:bg-sidebar-hover"
-            }`}
+                ? "bg-accent text-white shadow-sm"
+                : "text-white/70 hover:text-white hover:bg-white/8"
+            )}
           >
             {s.label[locale]}
           </button>
@@ -135,11 +141,12 @@ export function ScenarioBar() {
         <button
           onClick={() => setScenario("custom")}
           title={t(locale, "customScenarioDesc")}
-          className={`px-2 sm:px-2.5 py-1.5 text-[10px] sm:text-[11px] font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+          className={cn(
+            "px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-[11px] font-medium rounded-md transition-all duration-150 whitespace-nowrap shrink-0",
             scenario === "custom"
-              ? "bg-accent text-white"
-              : "text-white/70 hover:text-white hover:bg-sidebar-hover"
-          }`}
+              ? "bg-accent text-white shadow-sm"
+              : "text-white/70 hover:text-white hover:bg-white/8"
+          )}
         >
           {t(locale, "customScenario")}
         </button>
@@ -153,13 +160,13 @@ export function ScenarioBar() {
       )}
 
       {scenario !== "current" && (
-        <div className="flex items-center gap-2 pointer-events-auto">
-          <label className="flex items-center gap-1.5 bg-white/95 backdrop-blur rounded-md shadow px-2.5 py-1 text-[11px] text-slate-600 cursor-pointer">
+        <div className="flex items-center gap-2 pointer-events-auto animate-fade-in">
+          <label className="flex items-center gap-2 glass-panel px-3 py-1.5 text-caption text-slate-600 cursor-pointer hover:border-accent/30 transition-colors">
             <input
               type="checkbox"
               checked={compareMode}
               onChange={(e) => setCompareMode(e.target.checked)}
-              className="accent-accent"
+              className="accent-accent w-3.5 h-3.5 rounded"
             />
             {t(locale, "compareScenarios")}
           </label>
@@ -175,8 +182,9 @@ export function ScenarioBadge() {
   const s = resolveScenario(scenario, customScenario);
 
   return (
-    <div className="absolute top-3 left-3 z-[1000] bg-amber-500/90 text-white text-[11px] font-semibold px-2.5 py-1 rounded-md shadow max-w-[min(90vw,420px)] truncate">
-      {t(locale, "viewingScenario")}: {s.label[locale]}
+    <div className="absolute top-3 left-3 z-controls flex items-center gap-2 bg-amber-500/95 text-white text-caption font-semibold px-3 py-1.5 rounded-lg shadow-panel max-w-[min(90vw,420px)] animate-fade-in border border-amber-400/30">
+      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
+      <span className="truncate">{t(locale, "viewingScenario")}: {s.label[locale]}</span>
     </div>
   );
 }

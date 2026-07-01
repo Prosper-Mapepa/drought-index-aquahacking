@@ -1,6 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
-import { buildDroughtScore } from "@/lib/drought-index";
-import { buildInvestmentRisk } from "@/lib/investment-risk";
+import { NextRequest } from "next/server";
 import { fetchClimateIndices } from "@/lib/climate-data";
 import type { ClimateScenarioId } from "@/lib/scenarios";
 import {
@@ -9,6 +7,8 @@ import {
 } from "@/lib/scenarios";
 import type { WatershedProperties } from "@/lib/types";
 import { fetchTerritorialWithDemographics } from "@/lib/territorial-lookup";
+import { applyScenarioToIrht, buildIrhtResult } from "@/lib/irht";
+import { v1Json, v1Error } from "@/lib/api-v1";
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -29,32 +29,35 @@ export async function GET(request: NextRequest) {
   }
 
   if (isNaN(lat) || isNaN(lng)) {
-    return NextResponse.json({ error: "lat and lng required" }, { status: 400 });
+    return v1Error("lat and lng are required", 400);
   }
 
-  const customScenario = parseCustomScenarioFromSearchParams(params);
-  const scenario = resolveScenario(scenarioId, customScenario);
-  const territorial = await fetchTerritorialWithDemographics(lat, lng, watershed);
-  const { spi, spei } = await fetchClimateIndices(
-    lat,
-    lng,
-    scenario.useAafcSpi,
-    scenario.wmsLayer
-  );
+  try {
+    const customScenario = parseCustomScenarioFromSearchParams(params);
+    const scenario = resolveScenario(scenarioId, customScenario);
+    const territorial = await fetchTerritorialWithDemographics(lat, lng, watershed);
+    const { spi, spei } = await fetchClimateIndices(
+      lat,
+      lng,
+      scenario.useAafcSpi,
+      scenario.wmsLayer
+    );
 
-  const droughtScore = buildDroughtScore(
-    { spi, spei, depth, yieldLpm, territorial, watershed, scenarioId },
-    locale
-  );
-  const report = buildInvestmentRisk({
-    droughtScore,
-    watershed,
-    scenarioId,
-    customScenario: scenarioId === "custom" ? customScenario : null,
-    locale,
-  });
+    const base = buildIrhtResult(
+      { spi, spei, depth, yieldLpm, territorial, watershed },
+      locale
+    );
+    const projected = applyScenarioToIrht(base, scenarioId, locale);
 
-  return NextResponse.json(report, {
-    headers: { "Cache-Control": "public, s-maxage=3600" },
-  });
+    return v1Json({
+      ...projected,
+      spi,
+      spei,
+      scenario: scenarioId,
+      demographics: territorial.demographics ?? null,
+      location: { lat, lng },
+    });
+  } catch (error) {
+    return v1Error(`IRHT lookup failed: ${String(error)}`, 502);
+  }
 }

@@ -18,6 +18,7 @@ import type {
   IndexWeights,
   SavedArea,
   FlyToTarget,
+  RsesqStationSelection,
 } from "@/lib/types";
 import type { DroughtScore } from "@/lib/drought-index";
 import type { InvestmentRiskReport } from "@/lib/investment-risk";
@@ -74,7 +75,11 @@ interface AppContextValue {
   saveCurrentArea: (name: string) => void;
   deleteSavedArea: (id: string) => void;
   flyToTarget: FlyToTarget | null;
-  requestFlyTo: (center: [number, number], zoom: number) => void;
+  requestFlyTo: (
+    center: [number, number],
+    zoom: number,
+    scenarioAfter?: ClimateScenarioId
+  ) => void;
   mapTransitioning: boolean;
   setMapTransitioning: (v: boolean) => void;
   mapView: FlyToTarget | null;
@@ -82,13 +87,18 @@ interface AppContextValue {
   applyRegionDefaults: (region: MapRegion) => void;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  rsesqStation: RsesqStationSelection | null;
+  setRsesqStation: (station: RsesqStationSelection | null) => void;
 }
 
 const defaultLayers: LayerState[] = [
   { id: "spi", visible: true, opacity: 0.65 },
   { id: "spei", visible: false, opacity: 0.65 },
   { id: "sih-wells", visible: true, opacity: 1 },
+  { id: "rsesq-stations", visible: false, opacity: 1 },
   { id: "watersheds", visible: true, opacity: 0.5 },
+  { id: "land-use", visible: false, opacity: 0.45 },
+  { id: "gtc-sites", visible: false, opacity: 1 },
   { id: "great-lakes-basin", visible: false, opacity: 0.7 },
   { id: "us-spi", visible: false, opacity: 0.55 },
   { id: "satellite", visible: true, opacity: 1 },
@@ -121,6 +131,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [flyToTarget, setFlyToTarget] = useState<FlyToTarget | null>(null);
   const [mapTransitioning, setMapTransitioning] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [rsesqStation, setRsesqStation] = useState<RsesqStationSelection | null>(null);
   const [mapView, setMapViewState] = useState<FlyToTarget | null>(null);
 
   useEffect(() => {
@@ -140,11 +151,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const savedRegion = localStorage.getItem("drought-region") as MapRegion | null;
     if (savedRegion === "quebec" || savedRegion === "great-lakes") setRegionState(savedRegion);
     const savedWeights = localStorage.getItem("drought-index-weights");
-    if (savedWeights) {
+    if (savedWeights?.trim()) {
       try {
         setIndexWeightsState(normalizeWeights(JSON.parse(savedWeights)));
       } catch {
-        /* ignore */
+        /* ignore corrupt saved weights */
       }
     }
     setSavedAreas(loadSavedAreas());
@@ -191,9 +202,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIndexWeights(DEFAULT_INDEX_WEIGHTS);
   }, [setIndexWeights]);
 
-  const requestFlyTo = useCallback((center: [number, number], zoom: number) => {
-    setFlyToTarget({ center, zoom, id: Date.now() });
-  }, []);
+  const requestFlyTo = useCallback(
+    (center: [number, number], zoom: number, scenarioAfter?: ClimateScenarioId) => {
+      setMapTransitioning(true);
+      setFlyToTarget({ center, zoom, id: Date.now(), scenarioAfter });
+    },
+    []
+  );
 
   const acceptDisclaimer = useCallback(() => {
     setDisclaimerAccepted(true);
@@ -218,16 +233,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const applyRegionDefaults = useCallback((r: MapRegion) => {
     setMapTransitioning(true);
     setRegion(r);
+    setInvestmentRisk(null);
+    setSelectedWatershed(null);
+    setCompareRisk(null);
     setLayers((prev) =>
       prev.map((l) => {
         if (r === "great-lakes") {
           if (l.id === "great-lakes-basin") return { ...l, visible: true };
           if (l.id === "us-spi") return { ...l, visible: true };
+          if (l.id === "spi") return { ...l, visible: false };
+          if (l.id === "spei") return { ...l, visible: false };
           if (l.id === "sih-wells") return { ...l, visible: false };
           if (l.id === "watersheds") return { ...l, visible: false };
+          if (l.id === "land-use") return { ...l, visible: false };
+          if (l.id === "gtc-sites") return { ...l, visible: false };
+          if (l.id === "rsesq-stations") return { ...l, visible: false };
         } else {
           if (l.id === "great-lakes-basin") return { ...l, visible: false };
           if (l.id === "us-spi") return { ...l, visible: false };
+          if (l.id === "spi") return { ...l, visible: true };
           if (l.id === "sih-wells") return { ...l, visible: true };
           if (l.id === "watersheds") return { ...l, visible: true };
         }
@@ -329,6 +353,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       applyRegionDefaults,
       sidebarOpen,
       setSidebarOpen,
+      rsesqStation,
+      setRsesqStation,
     }),
     [
       locale,
@@ -368,6 +394,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setMapView,
       applyRegionDefaults,
       sidebarOpen,
+      rsesqStation,
     ]
   );
 

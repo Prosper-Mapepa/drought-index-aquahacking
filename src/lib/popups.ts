@@ -1,9 +1,10 @@
 import type { DroughtScore } from "./drought-index";
-import { riskTierColor } from "./drought-index";
+import { irhtDisplayColor, riskTierColor } from "./drought-index";
 import type { InvestmentRiskReport } from "./investment-risk";
 import type { ClimateScenarioId, CustomScenarioConfig } from "./scenarios";
 import { appendCustomScenarioParams } from "./scenarios";
-import type { Locale, IndexWeights } from "./types";
+import { formatComponentsBreakdown, type IrhtComponents } from "./irht";
+import type { Locale } from "./types";
 import type { WellProperties, WatershedProperties } from "./types";
 
 const popupStyles = {
@@ -16,6 +17,24 @@ const popupStyles = {
 function row(label: string, value: string | number | null | undefined): string {
   if (value == null || value === "") return "";
   return `<tr><td style="${popupStyles.label}">${label}</td><td style="${popupStyles.value}">${value}</td></tr>`;
+}
+
+function componentBarsHtml(components: IrhtComponents, locale: Locale): string {
+  const rows = formatComponentsBreakdown(components, locale);
+  return rows
+    .map((r) => {
+      const pct = Math.round(r.value * 100);
+      return `<div style="margin-bottom:5px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#64748b">
+          <span>${r.label} <span style="opacity:0.65">${r.weight}</span></span>
+          <span>${pct}%</span>
+        </div>
+        <div style="height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:#2563eb;border-radius:2px"></div>
+        </div>
+      </div>`;
+    })
+    .join("");
 }
 
 export function formatLoadingPopup(locale: Locale): string {
@@ -39,7 +58,7 @@ export function formatWellPopup(
           level: "Niveau",
           yield: "Débit",
           date: "Date",
-          composite: "Indice composite",
+          composite: "Score IRHT",
           spi: "SPI",
           spei: "SPEI",
           gwStress: "Stress hydrique",
@@ -53,7 +72,7 @@ export function formatWellPopup(
           level: "Water level",
           yield: "Yield",
           date: "Date",
-          composite: "Composite index",
+          composite: "IRHT score",
           spi: "SPI",
           spei: "SPEI",
           gwStress: "Groundwater stress",
@@ -71,9 +90,8 @@ export function formatWellPopup(
 
   let scoreSection = "";
   if (score) {
-    const tierColor = riskTierColor(score.riskTier);
-    const compositeDisplay =
-      score.composite != null ? score.composite.toFixed(2) : "—";
+    const tierColor = irhtDisplayColor(score.irht);
+    const irhtDisplay = score.irht != null ? score.irht.toFixed(1) : "—";
 
     scoreSection = `
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0">
@@ -84,13 +102,15 @@ export function formatWellPopup(
           <span style="background:${tierColor};color:#fff;font-size:11px;font-weight:700;
                          padding:2px 8px;border-radius:9999px">${score.riskLabel}</span>
         </div>
-        <div style="font-size:28px;font-weight:700;color:#1e293b;line-height:1">${compositeDisplay}</div>
+        <div style="font-size:28px;font-weight:700;color:#1e293b;line-height:1">${irhtDisplay}<span style="font-size:14px;color:#64748b"> /100</span></div>
+        <div style="font-size:11px;color:#64748b;margin-top:4px">${score.riskLabel}</div>
         <table style="${popupStyles.table};margin-top:8px">
           ${row(L.spi, score.spi != null ? score.spi.toFixed(2) : null)}
           ${row(L.spei, score.spei != null ? score.spei.toFixed(2) : null)}
           ${row(L.gwStress, score.groundwaterStress != null ? `${(score.groundwaterStress * 100).toFixed(0)}%` : null)}
           ${row(L.drought, score.droughtCategory !== "—" ? score.droughtCategory : null)}
         </table>
+        ${score.components ? `<div style="margin-top:10px">${componentBarsHtml(score.components, locale)}</div>` : ""}
       </div>`;
   }
 
@@ -158,6 +178,16 @@ export function formatWatershedPopup(
           ${(risk.overallScore * 100).toFixed(0)}<span style="font-size:12px;color:#64748b"> /100</span>
         </div>
         <div style="font-size:11px;color:#64748b;margin-top:2px">${risk.scenarioLabel}</div>
+        ${
+          risk.droughtScore?.irht != null
+            ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9">
+                <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px">
+                  ${locale === "fr" ? "Score IRHT" : "IRHT score"}: ${risk.droughtScore.irht.toFixed(1)}/100
+                </div>
+                ${risk.droughtScore.components ? componentBarsHtml(risk.droughtScore.components, locale) : ""}
+              </div>`
+            : ""
+        }
       </div>`
     : "";
 
@@ -179,7 +209,6 @@ export async function fetchDroughtScore(
   yieldLpm?: number,
   locale: Locale = "en",
   scenario: ClimateScenarioId = "current",
-  weights?: IndexWeights,
   customScenario?: CustomScenarioConfig | null
 ): Promise<DroughtScore | null> {
   const params = new URLSearchParams({
@@ -191,12 +220,6 @@ export async function fetchDroughtScore(
   appendCustomScenarioParams(params, scenario, customScenario);
   if (depth != null) params.set("depth", String(depth));
   if (yieldLpm != null) params.set("yield", String(yieldLpm));
-  if (weights) {
-    params.set("w_spi", String(weights.spi));
-    params.set("w_spei", String(weights.spei));
-    params.set("w_gw", String(weights.groundwater));
-    params.set("w_yield", String(weights.yield));
-  }
 
   try {
     const res = await fetch(`/api/drought?${params}`);
@@ -213,7 +236,6 @@ export async function fetchInvestmentRisk(
   scenario: ClimateScenarioId,
   locale: Locale,
   watershed?: WatershedProperties,
-  weights?: IndexWeights,
   customScenario?: CustomScenarioConfig | null
 ): Promise<InvestmentRiskReport | null> {
   const params = new URLSearchParams({
@@ -224,12 +246,6 @@ export async function fetchInvestmentRisk(
   });
   appendCustomScenarioParams(params, scenario, customScenario);
   if (watershed) params.set("watershed", JSON.stringify(watershed));
-  if (weights) {
-    params.set("w_spi", String(weights.spi));
-    params.set("w_spei", String(weights.spei));
-    params.set("w_gw", String(weights.groundwater));
-    params.set("w_yield", String(weights.yield));
-  }
 
   try {
     const res = await fetch(`/api/risk?${params}`);

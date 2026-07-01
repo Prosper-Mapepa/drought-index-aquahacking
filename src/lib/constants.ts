@@ -4,6 +4,16 @@ export const SIH_LAYER_URL =
 export const WATERSHED_LAYER_URL =
   "https://www.servicesgeo.enviroweb.gouv.qc.ca/donnees/rest/services/Public/Themes_publics/MapServer/83";
 
+export const THEMES_PUBLIC_MAPSERVER =
+  "https://www.servicesgeo.enviroweb.gouv.qc.ca/donnees/rest/services/Public/Themes_publics/MapServer";
+
+export const RSESQ_LAYER_URL =
+  "https://www.servicesgeo.enviroweb.gouv.qc.ca/donnees/rest/services/Public/Eaux_souterraines_EXT/MapServer/135";
+
+export const LAND_USE_LAYER_URL = `${THEMES_PUBLIC_MAPSERVER}/148`;
+
+export const GTC_LAYER_URL = `${THEMES_PUBLIC_MAPSERVER}/12`;
+
 export const GREAT_LAKES_BASIN_URL =
   "https://gis.glc.org/server/rest/services/hydrology/Great_Lakes_Basin_Boundary/MapServer/0";
 

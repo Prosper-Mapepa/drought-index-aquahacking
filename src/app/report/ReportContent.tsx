@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { t } from "@/lib/i18n";
 import { riskTierColor } from "@/lib/drought-index";
+import { formatComponentsBreakdown } from "@/lib/irht";
 import type { InvestmentRiskReport } from "@/lib/investment-risk";
 import type { ClimateScenarioId } from "@/lib/scenarios";
 import { appendCustomScenarioParams } from "@/lib/scenarios";
@@ -196,7 +197,7 @@ export default function ReportContent() {
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-3">
                   {t(locale, "compositeIndex")}
                 </h2>
-                <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-3 gap-4 text-sm mb-4">
                   <div>
                     <span className="text-slate-500">SPI</span>
                     <div className="font-mono font-semibold">
@@ -212,10 +213,37 @@ export default function ReportContent() {
                   <div>
                     <span className="text-slate-500">{t(locale, "compositeIndex")}</span>
                     <div className="font-mono font-semibold">
-                      {report.droughtScore.composite?.toFixed(2) ?? "—"}
+                      {report.droughtScore.irht?.toFixed(1) ?? "—"}
+                      <span className="text-slate-400 font-normal"> /100</span>
                     </div>
                   </div>
                 </div>
+                {report.droughtScore.components && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase">
+                      {t(locale, "componentsBreakdown")}
+                    </h3>
+                    {formatComponentsBreakdown(report.droughtScore.components, locale).map(
+                      (row) => (
+                        <div key={row.key}>
+                          <div className="flex justify-between text-xs text-slate-600 mb-0.5">
+                            <span>
+                              {row.label}{" "}
+                              <span className="text-slate-400">{row.weight}</span>
+                            </span>
+                            <span>{(row.value * 100).toFixed(0)}%</span>
+                          </div>
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-accent rounded-full"
+                              style={{ width: `${row.value * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
               </section>
             )}
 

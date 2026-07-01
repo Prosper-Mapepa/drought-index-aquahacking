@@ -1,6 +1,21 @@
 import { droughtLabel, DROUGHT_COLORS } from "./constants";
-import { DEFAULT_INDEX_WEIGHTS, normalizeWeights } from "./index-weights";
-import type { IndexWeights, Locale } from "./types";
+import {
+  buildIrhtResult,
+  applyScenarioToIrht,
+  irhtToResilienceLevel,
+  resilienceLevelColor,
+  resilienceLevelLabel,
+  resilienceToRiskTier,
+  type IrhtComponents,
+  type IrhtResilienceLevel,
+} from "./irht";
+import type { ClimateScenarioId } from "./scenarios";
+import { computeGroundwaterStress, computeYieldStress } from "./irht-stress";
+import type { TerritorialFactors } from "./territorial-data";
+import type { Locale, WatershedProperties } from "./types";
+
+export type { IrhtComponents, IrhtResilienceLevel };
+export { resilienceLevelColor, resilienceLevelLabel };
 
 export type RiskTier = "low" | "moderate" | "high" | "extreme";
 
@@ -9,10 +24,18 @@ export interface DroughtScore {
   spei: number | null;
   groundwaterStress: number | null;
   yieldStress: number | null;
+  landUseStress: number | null;
+  contaminationStress: number | null;
+  demographicStress: number | null;
+  /** Legacy stress scale — prefer `irht` (0–100, higher = more resilient) */
   composite: number | null;
+  irht: number | null;
+  components: IrhtComponents | null;
+  resilienceLevel: IrhtResilienceLevel;
   riskTier: RiskTier;
   riskLabel: string;
   droughtCategory: string;
+  landUseCategory?: string | null;
 }
 
 const RISK_COLORS: Record<RiskTier, string> = {
@@ -22,46 +45,7 @@ const RISK_COLORS: Record<RiskTier, string> = {
   extreme: "#dc2626",
 };
 
-export function computeGroundwaterStress(depth?: number): number | null {
-  if (depth == null || isNaN(depth)) return null;
-  if (depth < 30) return 0.8;
-  if (depth < 60) return 0.5;
-  return 0.2;
-}
-
-export function computeYieldStress(yieldLpm?: number): number | null {
-  if (yieldLpm == null || isNaN(yieldLpm)) return null;
-  if (yieldLpm < 10) return 0.9;
-  if (yieldLpm < 30) return 0.6;
-  if (yieldLpm < 60) return 0.35;
-  return 0.15;
-}
-
-export function computeCompositeIndex(
-  spi: number | null,
-  spei: number | null,
-  groundwaterStress: number | null,
-  yieldStress: number | null,
-  weights: IndexWeights = DEFAULT_INDEX_WEIGHTS
-): number | null {
-  const w = normalizeWeights(weights);
-  const components: { value: number; weight: number }[] = [];
-
-  if (spi != null) components.push({ value: -spi, weight: w.spi });
-  if (spei != null) components.push({ value: -spei, weight: w.spei });
-  if (groundwaterStress != null)
-    components.push({ value: groundwaterStress * 2 - 1, weight: w.groundwater });
-  if (yieldStress != null)
-    components.push({ value: yieldStress * 2 - 1, weight: w.yield });
-
-  if (components.length === 0) return null;
-
-  const totalWeight = components.reduce((s, c) => s + c.weight, 0);
-  const composite =
-    components.reduce((s, c) => s + c.value * c.weight, 0) / totalWeight;
-
-  return Number(composite.toFixed(2));
-}
+export { computeGroundwaterStress, computeYieldStress };
 
 export function compositeToRiskTier(composite: number | null): RiskTier {
   if (composite == null) return "moderate";
@@ -85,36 +69,62 @@ export function buildDroughtScore(
     spei: number | null;
     depth?: number;
     yieldLpm?: number;
-    weights?: IndexWeights;
+    territorial?: TerritorialFactors | null;
+    watershed?: WatershedProperties;
+    scenarioId?: ClimateScenarioId;
   },
   locale: Locale
 ): DroughtScore {
   const groundwaterStress = computeGroundwaterStress(params.depth);
   const yieldStress = computeYieldStress(params.yieldLpm);
-  const composite = computeCompositeIndex(
-    params.spi,
-    params.spei,
-    groundwaterStress,
-    yieldStress,
-    params.weights
+
+  const base = buildIrhtResult(
+    {
+      spi: params.spi,
+      spei: params.spei,
+      depth: params.depth,
+      yieldLpm: params.yieldLpm,
+      territorial: params.territorial,
+      watershed: params.watershed,
+    },
+    locale
   );
-  const riskTier = compositeToRiskTier(composite);
+
+  const projected =
+    params.scenarioId && params.scenarioId !== "current"
+      ? applyScenarioToIrht(base, params.scenarioId, locale)
+      : { ...base, baseIrht: base.irht };
+
+  const riskTier = resilienceToRiskTier(projected.resilienceLevel);
+  const legacyComposite = Number(((projected.irht - 50) / 25).toFixed(2));
 
   return {
     spi: params.spi,
     spei: params.spei,
     groundwaterStress,
     yieldStress,
-    composite,
+    landUseStress: params.territorial?.landUse.landUseStress ?? null,
+    contaminationStress: params.territorial?.contamination.contaminationStress ?? null,
+    demographicStress: params.territorial?.demographicPressure ?? null,
+    composite: legacyComposite,
+    irht: projected.irht,
+    components: projected.components,
+    resilienceLevel: projected.resilienceLevel,
     riskTier,
-    riskLabel: riskTierLabel(riskTier, locale),
+    riskLabel: projected.resilienceLabel,
     droughtCategory:
       params.spi != null ? droughtLabel(params.spi, locale) : "—",
+    landUseCategory: params.territorial?.landUse.category ?? null,
   };
 }
 
 export function riskTierColor(tier: RiskTier): string {
   return RISK_COLORS[tier];
+}
+
+export function irhtDisplayColor(irht: number | null): string {
+  if (irht == null) return RISK_COLORS.moderate;
+  return resilienceLevelColor(irhtToResilienceLevel(irht));
 }
 
 export function scoreBarColor(value: number): string {

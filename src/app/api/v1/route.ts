@@ -2,19 +2,25 @@ import { v1Json } from "@/lib/api-v1";
 
 export async function GET() {
   return v1Json({
-    name: "Great Lakes Drought Index API",
+    name: "LAPARA IRHT Platform API",
     version: "1.0",
     endpoints: [
       {
+        path: "/api/v1/irht",
+        method: "GET",
+        params: ["lat", "lng", "depth?", "yield?", "scenario?", "locale?", "watershed?"],
+        description: "Territorial Hydric Resilience Index (IRHT) with 6-component breakdown",
+      },
+      {
         path: "/api/v1/drought",
         method: "GET",
-        params: ["lat", "lng", "depth?", "yield?", "scenario?", "locale?", "w_spi?", "w_spei?", "w_gw?", "w_yield?"],
-        description: "Composite drought score at a point",
+        params: ["lat", "lng", "depth?", "yield?", "scenario?", "locale?", "watershed?"],
+        description: "IRHT drought score at a point (includes legacy composite field)",
       },
       {
         path: "/api/v1/risk",
         method: "GET",
-        params: ["lat", "lng", "scenario?", "locale?", "watershed?", "w_spi?", "w_spei?", "w_gw?", "w_yield?"],
+        params: ["lat", "lng", "scenario?", "locale?", "watershed?"],
         description: "Investment risk report at a point",
       },
       {
