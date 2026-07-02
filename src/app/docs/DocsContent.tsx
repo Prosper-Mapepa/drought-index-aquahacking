@@ -142,7 +142,7 @@ export function DocsContent({ baseUrl }: { baseUrl: string }) {
       </div>
 
       <p className="text-caption text-slate-400 pt-6 mt-8 border-t border-surface-border">
-        © {new Date().getFullYear()} Prosper Mapepa · Great Lakes Drought Index
+        © {new Date().getFullYear()} TEAM LAPARA · Great Lakes Drought Index
       </p>
     </ContentShell>
   );

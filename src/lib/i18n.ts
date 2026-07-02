@@ -64,7 +64,7 @@ const messages = {
     rsesqDemoNote: "Demo trend — full series via Données Québec RSESQ",
     attribution:
       "© Gouvernement du Québec (SIH) · Agriculture and Agri-Food Canada (SPI/SPEI) · OpenStreetMap",
-    copyrightName: "Prosper Mapepa",
+    copyrightName: "TEAM LAPARA",
     close: "Close",
     language: "English",
     switchLanguage: "Français",
@@ -256,7 +256,7 @@ const messages = {
     rsesqDemoNote: "Tendance démo — série complète via Données Québec RSESQ",
     attribution:
       "© Gouvernement du Québec (SIH) · Agriculture et Agroalimentaire Canada (SPI/SPEI) · OpenStreetMap",
-    copyrightName: "Prosper Mapepa",
+    copyrightName: "TEAM LAPARA",
     close: "Fermer",
     language: "Français",
     switchLanguage: "English",

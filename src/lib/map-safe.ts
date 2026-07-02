@@ -44,8 +44,43 @@ export function useTransitioningRef(mapTransitioning: boolean) {
 }
 
 /** Skip layer add/remove during region fly — avoids Leaflet/React removeChild races */
-export function deferLayerMutation(mapTransitioning: boolean): boolean {
-  return mapTransitioning;
+export function deferLayerMutation(layersLocked: boolean): boolean {
+  return layersLocked;
+}
+
+/** Run async layer sync without surfacing errors to React */
+export function runLayerSync(sync: () => void | Promise<void>): void {
+  void Promise.resolve()
+    .then(sync)
+    .catch(() => {
+      /* layer sync aborted during region switch */
+    });
+}
+
+export function safeGetMapView(
+  map: L.Map | null | undefined
+): { bounds: L.LatLngBounds; zoom: number } | null {
+  if (!isMapUsable(map)) return null;
+  try {
+    return { bounds: map.getBounds(), zoom: map.getZoom() };
+  } catch {
+    return null;
+  }
+}
+
+export function safeFlyTo(
+  map: L.Map,
+  center: [number, number],
+  zoom: number,
+  options?: L.ZoomPanOptions
+): boolean {
+  if (!isMapUsable(map)) return false;
+  try {
+    map.flyTo(center, zoom, options);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function safeRemoveLayer(map: L.Map, layer?: L.Layer | null) {

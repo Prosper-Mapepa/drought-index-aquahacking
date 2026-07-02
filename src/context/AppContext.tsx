@@ -82,6 +82,8 @@ interface AppContextValue {
   ) => void;
   mapTransitioning: boolean;
   setMapTransitioning: (v: boolean) => void;
+  /** True while flying between regions — blocks Leaflet layer mutations */
+  layersLocked: boolean;
   mapView: FlyToTarget | null;
   setMapView: (view: FlyToTarget | null) => void;
   applyRegionDefaults: (region: MapRegion) => void;
@@ -130,6 +132,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [savedAreas, setSavedAreas] = useState<SavedArea[]>([]);
   const [flyToTarget, setFlyToTarget] = useState<FlyToTarget | null>(null);
   const [mapTransitioning, setMapTransitioning] = useState(false);
+  const [layersReady, setLayersReady] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rsesqStation, setRsesqStation] = useState<RsesqStationSelection | null>(null);
   const [mapView, setMapViewState] = useState<FlyToTarget | null>(null);
@@ -161,6 +164,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSavedAreas(loadSavedAreas());
     setCustomScenarioState(loadCustomScenario());
   }, []);
+
+  const layersLocked = mapTransitioning || !layersReady;
+
+  useEffect(() => {
+    if (mapTransitioning) {
+      setLayersReady(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setLayersReady(true), 350);
+    return () => clearTimeout(timer);
+  }, [mapTransitioning]);
 
   const setMapView = useCallback((view: FlyToTarget | null) => {
     setMapViewState((prev) => {
@@ -238,33 +252,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRsesqStation(null);
     setSelectedWellScore(null);
     setLegendMode("spi");
-    setRegion(r);
-    setLayers((prev) =>
-      prev.map((l) => {
-        if (r === "great-lakes") {
-          if (l.id === "great-lakes-basin") return { ...l, visible: true };
-          if (l.id === "us-spi") return { ...l, visible: true };
-          if (l.id === "spi") return { ...l, visible: false };
-          if (l.id === "spei") return { ...l, visible: false };
-          if (l.id === "sih-wells") return { ...l, visible: false };
-          if (l.id === "watersheds") return { ...l, visible: false };
-          if (l.id === "land-use") return { ...l, visible: false };
-          if (l.id === "gtc-sites") return { ...l, visible: false };
-          if (l.id === "rsesq-stations") return { ...l, visible: false };
-        } else {
-          if (l.id === "great-lakes-basin") return { ...l, visible: false };
-          if (l.id === "us-spi") return { ...l, visible: false };
-          if (l.id === "spi") return { ...l, visible: true };
-          if (l.id === "sih-wells") return { ...l, visible: true };
-          if (l.id === "watersheds") return { ...l, visible: true };
-        }
-        return l;
-      })
-    );
-    const view = REGION_VIEWS[r];
+
     window.setTimeout(() => {
-      setFlyToTarget({ center: view.center, zoom: view.zoom, id: Date.now() });
-    }, 250);
+      setRegion(r);
+      setLayers((prev) =>
+        prev.map((l) => {
+          if (r === "great-lakes") {
+            if (l.id === "great-lakes-basin") return { ...l, visible: true };
+            if (l.id === "us-spi") return { ...l, visible: true };
+            if (l.id === "spi") return { ...l, visible: false };
+            if (l.id === "spei") return { ...l, visible: false };
+            if (l.id === "sih-wells") return { ...l, visible: false };
+            if (l.id === "watersheds") return { ...l, visible: false };
+            if (l.id === "land-use") return { ...l, visible: false };
+            if (l.id === "gtc-sites") return { ...l, visible: false };
+            if (l.id === "rsesq-stations") return { ...l, visible: false };
+          } else {
+            if (l.id === "great-lakes-basin") return { ...l, visible: false };
+            if (l.id === "us-spi") return { ...l, visible: false };
+            if (l.id === "spi") return { ...l, visible: true };
+            if (l.id === "sih-wells") return { ...l, visible: true };
+            if (l.id === "watersheds") return { ...l, visible: true };
+          }
+          return l;
+        })
+      );
+
+      const view = REGION_VIEWS[r];
+      window.setTimeout(() => {
+        setFlyToTarget({ center: view.center, zoom: view.zoom, id: Date.now() });
+      }, 100);
+    }, 50);
   }, [setRegion]);
 
   const toggleLayer = useCallback((id: LayerId) => {
@@ -351,6 +369,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       requestFlyTo,
       mapTransitioning,
       setMapTransitioning,
+      layersLocked,
       mapView,
       setMapView,
       applyRegionDefaults,
@@ -393,6 +412,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       flyToTarget,
       requestFlyTo,
       mapTransitioning,
+      layersLocked,
       mapView,
       setMapView,
       applyRegionDefaults,

@@ -10,6 +10,7 @@ import { DroughtLegend } from "@/components/ui/DroughtLegend";
 import { ScenarioBar, ScenarioBadge } from "@/components/ui/ScenarioBar";
 import { RiskPanel } from "@/components/ui/RiskPanel";
 import { YamaskaDemoPanel } from "@/components/ui/YamaskaDemoPanel";
+import { MapErrorBoundary } from "@/components/ui/MapErrorBoundary";
 const RsesqTimeSeriesPanel = dynamic(
   () =>
     import("@/components/ui/RsesqTimeSeriesPanel").then((m) => m.RsesqTimeSeriesPanel),
@@ -41,7 +42,9 @@ export default function HomePage() {
             sidebarOpen ? "md:ml-[var(--sidebar-width)]" : ""
           }`}
         >
-          <DroughtMap />
+          <MapErrorBoundary>
+            <DroughtMap />
+          </MapErrorBoundary>
           <ScenarioBadge />
           <YamaskaDemoPanel />
           <DroughtLegend />
